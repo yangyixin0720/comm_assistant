@@ -561,7 +561,7 @@
                             <button class="action-btn" id="searchToggle" onclick="toggleWebSearch()">
                                 🌐 联网搜索
                             </button>
-                            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+                            <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                         </div>
                         <div id="imagePreview"></div>
                     </div>
@@ -633,7 +633,7 @@
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 isLoading: false,
-                currentImage: null,
+                currentImages: [],
                 inputText: ''
             };
         }
@@ -685,8 +685,8 @@
             input.style.height = Math.min(input.scrollHeight, 120) + 'px';
             
             // Restore image state
-            if (conv.currentImage) {
-                displayImagePreviewFromData(conv.currentImage);
+            if (conv.currentImages && conv.currentImages.length > 0) {
+                renderImagePreviews(conv.currentImages);
             } else {
                 removeImage();
             }
@@ -791,10 +791,10 @@
             msgs.forEach(msg => {
                 if (Array.isArray(msg.content)) {
                     const text = msg.content.find(c => c.type === 'text')?.text || '';
-                    const image = msg.content.find(c => c.type === 'image_url')?.image_url?.url;
-                    addMessage(msg.role === 'user' ? 'user' : 'ai', text, image, false);
+                    const images = msg.content.filter(c => c.type === 'image_url').map(c => c.image_url?.url);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', text, images, false);
                 } else {
-                    addMessage(msg.role === 'user' ? 'user' : 'ai', msg.content, null, false);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', msg.content, [], false);
                 }
             });
             container.scrollTop = container.scrollHeight;
@@ -854,54 +854,66 @@
                 if (item.type.startsWith('image/')) {
                     e.preventDefault();
                     const file = item.getAsFile();
-                    displayImagePreview(file);
+                    addImage(file);
                     break;
                 }
             }
         }
 
         function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                displayImagePreview(file);
-            }
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    addImage(file);
+                }
+            });
+            e.target.value = '';
         }
 
-        function displayImagePreview(file) {
+        function addImage(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const conv = getCurrentConversation();
                 if (conv) {
-                    conv.currentImage = e.target.result;
+                    if (!conv.currentImages) conv.currentImages = [];
+                    conv.currentImages.push(e.target.result);
                     saveConversations();
+                    renderImagePreviews(conv.currentImages);
                 }
-                renderImagePreview(e.target.result);
             };
             reader.readAsDataURL(file);
         }
 
-        function displayImagePreviewFromData(dataUrl) {
-            renderImagePreview(dataUrl);
+        function removeImage(index) {
+            const conv = getCurrentConversation();
+            if (conv && conv.currentImages) {
+                conv.currentImages.splice(index, 1);
+                saveConversations();
+                if (conv.currentImages.length > 0) {
+                    renderImagePreviews(conv.currentImages);
+                } else {
+                    document.getElementById('imagePreview').innerHTML = '';
+                }
+            }
         }
 
-        function renderImagePreview(src) {
-            const preview = document.getElementById('imagePreview');
-            preview.innerHTML = `
-                <div class="image-preview">
-                    <img src="${src}" alt="预览">
-                    <button class="remove-btn" onclick="removeImage()">×</button>
-                </div>
-            `;
-        }
-
-        function removeImage() {
+        function removeAllImages() {
             const conv = getCurrentConversation();
             if (conv) {
-                conv.currentImage = null;
+                conv.currentImages = [];
                 saveConversations();
             }
             document.getElementById('imagePreview').innerHTML = '';
-            document.getElementById('fileInput').value = '';
+        }
+
+        function renderImagePreviews(images) {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = images.map((src, i) => `
+                <div class="image-preview">
+                    <img src="${src}" alt="预览${i + 1}">
+                    <button class="remove-btn" onclick="removeImage(${i})">×</button>
+                </div>
+            `).join('');
         }
 
         function quickAsk(question) {
@@ -919,24 +931,24 @@
             }
             
             const conv = getCurrentConversation();
-            const image = conv.currentImage;
+            const images = conv.currentImages || [];
             
-            if ((!text && !image) || conv.isLoading) return;
+            if ((!text && images.length === 0) || conv.isLoading) return;
 
             conv.isLoading = true;
             document.getElementById('sendBtn').disabled = true;
 
             // Build message content
             let content = [];
-            if (image) {
-                content.push({ type: 'image_url', image_url: { url: image } });
-            }
+            images.forEach(img => {
+                content.push({ type: 'image_url', image_url: { url: img } });
+            });
             if (text) {
                 content.push({ type: 'text', text: text });
             }
 
             // Display user message
-            addMessage('user', text, image);
+            addMessage('user', text, images);
             
             // Save to conversation
             conv.messages.push({ role: 'user', content: content });
@@ -948,8 +960,8 @@
             input.value = '';
             input.style.height = 'auto';
             conv.inputText = '';
-            conv.currentImage = null;
-            removeImage();
+            conv.currentImages = [];
+            removeAllImages();
             saveConversations();
 
             const typingId = showTyping();
@@ -1002,7 +1014,7 @@
             }
         }
 
-        function addMessage(role, text, image, save = true) {
+        function addMessage(role, text, images, save = true) {
             const container = document.getElementById('chatContainer');
             
             // Remove empty state if present
@@ -1020,8 +1032,10 @@
             bubble.className = 'bubble';
             
             let html = '';
-            if (image) {
-                html += `<img src="${image}" alt="用户图片">`;
+            if (images && images.length > 0) {
+                images.forEach(img => {
+                    html += `<img src="${img}" alt="用户图片">`;
+                });
             }
             if (text) {
                 html += formatMessage(text);
