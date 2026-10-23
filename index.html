@@ -583,7 +583,9 @@
 - 分步骤讲解，逻辑清晰
 - 如果问题模糊，主动询问具体需求
 - 鼓励式教学，耐心细致
-- 如果用户发送了图片，仔细分析图片内容并回答相关问题`;
+- 如果用户发送了图片，仔细分析图片内容并回答相关问题
+- 不确定的内容直接说"我不太确定"或"这个我不太了解"，不要编造虚假信息
+- 回答要简洁，不要重复相同的内容`;
 
         let conversations = {};
         let currentConvId = null;
@@ -917,7 +919,7 @@
                         'Authorization': `Bearer ${API_KEY}`
                     },
                     body: JSON.stringify({
-                        model: 'Qwen/Qwen3-VL-8B-Instruct',
+                        model: 'Qwen/Qwen3-VL-32B-Instruct',
                         messages: conv.messages,
                         temperature: 0.7,
                         max_tokens: 2000
