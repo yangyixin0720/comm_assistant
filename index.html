@@ -587,13 +587,24 @@
 
         let conversations = {};
         let currentConvId = null;
-        let isLoading = false;
-        let currentImage = null;
 
         // ===== Conversation Management =====
 
         function generateId() {
             return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function createConversationData(id, title) {
+            return {
+                id: id,
+                title: title || '新对话',
+                messages: [{ role: 'system', content: SYSTEM_PROMPT }],
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                isLoading: false,
+                currentImage: null,
+                inputText: ''
+            };
         }
 
         function loadConversations() {
@@ -618,13 +629,7 @@
 
         function createNewChat() {
             const id = generateId();
-            conversations[id] = {
-                id: id,
-                title: '新对话',
-                messages: [{ role: 'system', content: SYSTEM_PROMPT }],
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            };
+            conversations[id] = createConversationData(id);
             saveConversations();
             switchToConversation(id);
             renderConversationList();
@@ -632,9 +637,35 @@
 
         function switchToConversation(id) {
             if (!conversations[id]) return;
+            
+            // Save current conversation's input state before switching
+            if (currentConvId && conversations[currentConvId]) {
+                const prevConv = conversations[currentConvId];
+                prevConv.inputText = document.getElementById('userInput').value;
+            }
+            
             currentConvId = id;
+            const conv = conversations[id];
+            
+            // Restore input state
+            const input = document.getElementById('userInput');
+            input.value = conv.inputText || '';
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+            
+            // Restore image state
+            if (conv.currentImage) {
+                displayImagePreviewFromData(conv.currentImage);
+            } else {
+                removeImage();
+            }
+            
+            // Update send button state
+            document.getElementById('sendBtn').disabled = conv.isLoading;
+            
             renderMessages();
             renderConversationList();
+            
             // Close sidebar on mobile
             if (window.innerWidth <= 768) {
                 document.getElementById('sidebar').classList.add('collapsed');
@@ -703,7 +734,7 @@
             list.innerHTML = sorted.map(conv => `
                 <div class="conv-item ${conv.id === currentConvId ? 'active' : ''}" onclick="switchToConversation('${conv.id}')">
                     <div class="conv-info">
-                        <div class="conv-title">${escapeHtml(conv.title)}</div>
+                        <div class="conv-title">${escapeHtml(conv.title)}${conv.isLoading ? ' <span style="color:#6366f1;font-size:0.7rem;">⏳</span>' : ''}</div>
                         <div class="conv-time">${formatTime(conv.updatedAt)}</div>
                     </div>
                     <button class="conv-delete" onclick="deleteConversation('${conv.id}', event)" title="删除">×</button>
@@ -794,20 +825,36 @@
         function displayImagePreview(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                currentImage = e.target.result;
-                const preview = document.getElementById('imagePreview');
-                preview.innerHTML = `
-                    <div class="image-preview">
-                        <img src="${currentImage}" alt="预览">
-                        <button class="remove-btn" onclick="removeImage()">×</button>
-                    </div>
-                `;
+                const conv = getCurrentConversation();
+                if (conv) {
+                    conv.currentImage = e.target.result;
+                    saveConversations();
+                }
+                renderImagePreview(e.target.result);
             };
             reader.readAsDataURL(file);
         }
 
+        function displayImagePreviewFromData(dataUrl) {
+            renderImagePreview(dataUrl);
+        }
+
+        function renderImagePreview(src) {
+            const preview = document.getElementById('imagePreview');
+            preview.innerHTML = `
+                <div class="image-preview">
+                    <img src="${src}" alt="预览">
+                    <button class="remove-btn" onclick="removeImage()">×</button>
+                </div>
+            `;
+        }
+
         function removeImage() {
-            currentImage = null;
+            const conv = getCurrentConversation();
+            if (conv) {
+                conv.currentImage = null;
+                saveConversations();
+            }
             document.getElementById('imagePreview').innerHTML = '';
             document.getElementById('fileInput').value = '';
         }
@@ -821,30 +868,32 @@
             const input = document.getElementById('userInput');
             const text = input.value.trim();
             
-            if ((!text && !currentImage) || isLoading) return;
-
             // Ensure we have a conversation
             if (!currentConvId || !conversations[currentConvId]) {
                 createNewChat();
             }
+            
+            const conv = getCurrentConversation();
+            const image = conv.currentImage;
+            
+            if ((!text && !image) || conv.isLoading) return;
 
-            isLoading = true;
+            conv.isLoading = true;
             document.getElementById('sendBtn').disabled = true;
 
             // Build message content
             let content = [];
-            if (currentImage) {
-                content.push({ type: 'image_url', image_url: { url: currentImage } });
+            if (image) {
+                content.push({ type: 'image_url', image_url: { url: image } });
             }
             if (text) {
                 content.push({ type: 'text', text: text });
             }
 
             // Display user message
-            addMessage('user', text, currentImage);
+            addMessage('user', text, image);
             
             // Save to conversation
-            const conv = getCurrentConversation();
             conv.messages.push({ role: 'user', content: content });
             conv.updatedAt = Date.now();
             saveConversations();
@@ -853,7 +902,10 @@
             // Clear input
             input.value = '';
             input.style.height = 'auto';
+            conv.inputText = '';
+            conv.currentImage = null;
             removeImage();
+            saveConversations();
 
             const typingId = showTyping();
 
@@ -891,9 +943,12 @@
                 removeTyping(typingId);
                 addMessage('ai', `出错了：${error.message}。请检查网络连接或 API Key。`);
             } finally {
-                isLoading = false;
-                document.getElementById('sendBtn').disabled = false;
-                input.focus();
+                conv.isLoading = false;
+                // Only re-enable button if this is still the active conversation
+                if (currentConvId === conv.id) {
+                    document.getElementById('sendBtn').disabled = false;
+                    input.focus();
+                }
             }
         }
 
@@ -980,6 +1035,11 @@
         document.getElementById('userInput').addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            // Save input text to current conversation
+            const conv = getCurrentConversation();
+            if (conv) {
+                conv.inputText = this.value;
+            }
         });
 
         // ===== Share Conversation =====
@@ -1027,13 +1087,8 @@
 
                 // Create a new conversation for the shared content
                 const id = generateId();
-                conversations[id] = {
-                    id: id,
-                    title: '分享的对话',
-                    messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...chatMessages],
-                    createdAt: Date.now(),
-                    updatedAt: Date.now()
-                };
+                conversations[id] = createConversationData(id, '分享的对话');
+                conversations[id].messages = [{ role: 'system', content: SYSTEM_PROMPT }, ...chatMessages];
                 saveConversations();
                 switchToConversation(id);
                 renderConversationList();
