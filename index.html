@@ -363,6 +363,11 @@
             color: var(--primary);
             border-color: var(--primary);
         }
+        .action-btn.active {
+            background: #6366f1;
+            color: white;
+            border-color: #6366f1;
+        }
         .send-btn {
             padding: 12px 24px;
             background: var(--primary);
@@ -553,6 +558,9 @@
                             <button class="action-btn" onclick="document.getElementById('fileInput').click()">
                                 📎 上传图片
                             </button>
+                            <button class="action-btn" id="searchToggle" onclick="toggleWebSearch()">
+                                🌐 联网搜索
+                            </button>
                             <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
                         </div>
                         <div id="imagePreview"></div>
@@ -578,14 +586,68 @@
 
 回答要求：
 - 用通俗易懂的中文解释，适合学生理解
-- 公式用 Unicode 字符表示（如 π, Σ, ∫），不要用 LaTeX
+- 公式用 Unicode 字符表示（如 π, Σ, ），不要用 LaTeX
 - 代码用代码块格式
 - 分步骤讲解，逻辑清晰
 - 如果问题模糊，主动询问具体需求
 - 鼓励式教学，耐心细致
 - 如果用户发送了图片，仔细分析图片内容并回答相关问题
 - 不确定的内容直接说"我不太确定"或"这个我不太了解"，不要编造虚假信息
-- 回答要简洁，不要重复相同的内容`;
+- 回答要简洁，不要重复相同的内容
+- 如果提供了搜索结果，优先基于搜索结果回答，并在回答末尾标注信息来源`;
+
+        // ===== Web Search =====
+
+        let webSearchEnabled = false;
+
+        async function webSearch(query) {
+            const results = [];
+            
+            // 1. Wikipedia search (supports CORS)
+            try {
+                const wikiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=3&format=json&origin=*`;
+                const wikiRes = await fetch(wikiUrl);
+                const wikiData = await wikiRes.json();
+                if (wikiData.query && wikiData.query.search) {
+                    for (const item of wikiData.query.search) {
+                        results.push({ title: item.title, snippet: item.snippet.replace(/<[^>]+>/g, ''), source: '维基百科' });
+                    }
+                }
+            } catch (e) {
+                console.log('Wikipedia search failed:', e);
+            }
+
+            // 2. DuckDuckGo instant answer
+            try {
+                const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`;
+                const ddgRes = await fetch(ddgUrl);
+                const ddgData = await ddgRes.json();
+                if (ddgData.AbstractText) {
+                    results.push({ title: ddgData.Heading || query, snippet: ddgData.AbstractText, source: 'DuckDuckGo' });
+                }
+                if (ddgData.RelatedTopics) {
+                    for (const topic of ddgData.RelatedTopics.slice(0, 3)) {
+                        if (topic.Text) {
+                            results.push({ title: topic.Text.substring(0, 50), snippet: topic.Text, source: 'DuckDuckGo' });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('DuckDuckGo search failed:', e);
+            }
+
+            return results;
+        }
+
+        function formatSearchResults(results) {
+            if (results.length === 0) return '';
+            let text = '\n\n【联网搜索结果】\n';
+            results.forEach((r, i) => {
+                text += `${i + 1}. [${r.source}] ${r.title}\n   ${r.snippet}\n\n`;
+            });
+            text += '请基于以上搜索结果回答问题，如果搜索结果不充分，可以补充你自己的知识，但要标注哪些是来自搜索、哪些是你自己的知识。\n';
+            return text;
+        }
 
         let conversations = {};
         let currentConvId = null;
@@ -790,6 +852,20 @@
             return div.innerHTML;
         }
 
+        // ===== Web Search Toggle =====
+
+        function toggleWebSearch() {
+            webSearchEnabled = !webSearchEnabled;
+            const btn = document.getElementById('searchToggle');
+            if (webSearchEnabled) {
+                btn.classList.add('active');
+                btn.textContent = '🌐 联网已开启';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '🌐 联网搜索';
+            }
+        }
+
         // ===== Sidebar Toggle =====
 
         function toggleSidebar() {
@@ -912,6 +988,20 @@
             const typingId = showTyping();
 
             try {
+                let messagesToSend = conv.messages;
+                
+                // If web search is enabled, search and add results
+                if (webSearchEnabled && text) {
+                    const searchResults = await webSearch(text);
+                    if (searchResults.length > 0) {
+                        const searchContext = formatSearchResults(searchResults);
+                        messagesToSend = [
+                            { role: 'system', content: SYSTEM_PROMPT + searchContext },
+                            ...conv.messages.filter(m => m.role !== 'system')
+                        ];
+                    }
+                }
+
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
@@ -920,7 +1010,7 @@
                     },
                     body: JSON.stringify({
                         model: 'Qwen/Qwen3-VL-32B-Instruct',
-                        messages: conv.messages,
+                        messages: messagesToSend,
                         temperature: 0.7,
                         max_tokens: 2000
                     })
