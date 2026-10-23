@@ -600,53 +600,20 @@
 
         let webSearchEnabled = false;
 
-        async function webSearch(query) {
-            const results = [];
-            
-            // 1. Wikipedia search (supports CORS)
-            try {
-                const wikiUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=3&format=json&origin=*`;
-                const wikiRes = await fetch(wikiUrl);
-                const wikiData = await wikiRes.json();
-                if (wikiData.query && wikiData.query.search) {
-                    for (const item of wikiData.query.search) {
-                        results.push({ title: item.title, snippet: item.snippet.replace(/<[^>]+>/g, ''), source: '维基百科' });
-                    }
-                }
-            } catch (e) {
-                console.log('Wikipedia search failed:', e);
-            }
-
-            // 2. DuckDuckGo instant answer
-            try {
-                const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`;
-                const ddgRes = await fetch(ddgUrl);
-                const ddgData = await ddgRes.json();
-                if (ddgData.AbstractText) {
-                    results.push({ title: ddgData.Heading || query, snippet: ddgData.AbstractText, source: 'DuckDuckGo' });
-                }
-                if (ddgData.RelatedTopics) {
-                    for (const topic of ddgData.RelatedTopics.slice(0, 3)) {
-                        if (topic.Text) {
-                            results.push({ title: topic.Text.substring(0, 50), snippet: topic.Text, source: 'DuckDuckGo' });
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log('DuckDuckGo search failed:', e);
-            }
-
-            return results;
+        function openWebSearch(query) {
+            window.open(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}`, '_blank');
         }
 
-        function formatSearchResults(results) {
-            if (results.length === 0) return '';
-            let text = '\n\n【联网搜索结果】\n';
-            results.forEach((r, i) => {
-                text += `${i + 1}. [${r.source}] ${r.title}\n   ${r.snippet}\n\n`;
-            });
-            text += '请基于以上搜索结果回答问题，如果搜索结果不充分，可以补充你自己的知识，但要标注哪些是来自搜索、哪些是你自己的知识。\n';
-            return text;
+        function toggleWebSearch() {
+            webSearchEnabled = !webSearchEnabled;
+            const btn = document.getElementById('searchToggle');
+            if (webSearchEnabled) {
+                btn.classList.add('active');
+                btn.textContent = '🌐 联网已开启';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '🌐 联网搜索';
+            }
         }
 
         let conversations = {};
@@ -988,18 +955,9 @@
             const typingId = showTyping();
 
             try {
-                let messagesToSend = conv.messages;
-                
-                // If web search is enabled, search and add results
+                // If web search is enabled, open Baidu search in new tab
                 if (webSearchEnabled && text) {
-                    const searchResults = await webSearch(text);
-                    if (searchResults.length > 0) {
-                        const searchContext = formatSearchResults(searchResults);
-                        messagesToSend = [
-                            { role: 'system', content: SYSTEM_PROMPT + searchContext },
-                            ...conv.messages.filter(m => m.role !== 'system')
-                        ];
-                    }
+                    openWebSearch(text);
                 }
 
                 const response = await fetch(API_URL, {
@@ -1010,7 +968,7 @@
                     },
                     body: JSON.stringify({
                         model: 'Qwen/Qwen3-VL-32B-Instruct',
-                        messages: messagesToSend,
+                        messages: conv.messages,
                         temperature: 0.7,
                         max_tokens: 2000
                     })
