@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>通信工程专业学习助手</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+            --user-msg: #2563eb;
+            --ai-msg: #f1f5f9;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 {
+            font-size: 1.25rem;
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .topic-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .topic-tag {
+            padding: 4px 12px;
+            background: #eff6ff;
+            color: var(--primary);
+            border-radius: 16px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .topic-tag:hover {
+            border-color: var(--primary);
+            background: #dbeafe;
+        }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 85%;
+        }
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        .message.ai {
+            align-self: flex-start;
+        }
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        .message.user .avatar {
+            background: var(--user-msg);
+            color: white;
+        }
+        .message.ai .avatar {
+            background: var(--ai-msg);
+            color: var(--text);
+        }
+        .bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+        .message.user .bubble {
+            background: var(--user-msg);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .message.ai .bubble {
+            background: var(--ai-msg);
+            color: var(--text);
+            border-bottom-left-radius: 4px;
+        }
+        .bubble h3 {
+            margin: 12px 0 8px 0;
+            font-size: 1rem;
+            color: var(--primary);
+        }
+        .bubble h3:first-child {
+            margin-top: 0;
+        }
+        .bubble p {
+            margin-bottom: 8px;
+        }
+        .bubble ul, .bubble ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+        .bubble li {
+            margin-bottom: 4px;
+        }
+        .bubble code {
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .bubble pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 8px 0;
+        }
+        .bubble pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        .bubble strong {
+            color: var(--primary);
+        }
+        .input-area {
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            padding: 16px 24px;
+        }
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        textarea {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            resize: none;
+            min-height: 48px;
+            max-height: 120px;
+            line-height: 1.5;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .send-btn {
+            padding: 12px 24px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        .send-btn:hover {
+            background: var(--primary-hover);
+        }
+        .send-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .quick-btn {
+            padding: 6px 14px;
+            background: #f1f5f9;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .quick-btn:hover {
+            background: #e2e8f0;
+            color: var(--text);
+        }
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 8px 0;
+        }
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+        @media (max-width: 768px) {
+            header { padding: 12px 16px; }
+            header h1 { font-size: 1.1rem; }
+            .chat-container { padding: 16px; }
+            .message { max-width: 95%; }
+            .input-area { padding: 12px 16px; }
+            .topic-tags { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>通信工程专业学习助手</h1>
+            <span class="subtitle">DSP · VHDL · 通信原理 · 微波技术</span>
+        </div>
+        <div class="topic-tags">
+            <span class="topic-tag" onclick="askTopic('DSP')">DSP</span>
+            <span class="topic-tag" onclick="askTopic('VHDL')">VHDL</span>
+            <span class="topic-tag" onclick="askTopic('通信原理')">通信原理</span>
+            <span class="topic-tag" onclick="askTopic('微波技术')">微波技术</span>
+            <span class="topic-tag" onclick="shareConversation()" style="background:#dcfce7;color:#16a34a;">分享对话</span>
+        </div>
+    </header>
+
+    <div class="chat-container" id="chatContainer">
+        <div class="message ai">
+            <div class="avatar"></div>
+            <div class="bubble">
+                通信工程这块有什么不懂的可以直接问，比如：
+                <ul>
+                    <li>FFT 到底是怎么回事，为什么这么快</li>
+                    <li>VHDL 写个分频器老是报错，帮我看下</li>
+                    <li>QPSK 和 16QAM 到底差在哪</li>
+                    <li>史密斯圆图怎么看，阻抗匹配怎么搞</li>
+                </ul>
+                想到什么问什么就行。
+            </div>
+        </div>
+    </div>
+
+    <div class="input-area">
+        <div class="input-wrapper">
+            <textarea id="userInput" placeholder="输入你的问题..." rows="1" onkeydown="handleKey(event)"></textarea>
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
+        </div>
+        <div class="quick-actions">
+            <button class="quick-btn" onclick="quickAsk('解释一下FFT的原理')">FFT原理</button>
+            <button class="quick-btn" onclick="quickAsk('写一个8位分频器的VHDL代码')">VHDL分频器</button>
+            <button class="quick-btn" onclick="quickAsk('QPSK调制和解调的过程')">QPSK调制</button>
+            <button class="quick-btn" onclick="quickAsk('史密斯圆图怎么用')">史密斯圆图</button>
+            <button class="quick-btn" onclick="quickAsk('低通滤波器怎么设计')">滤波器设计</button>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'sk-6e9df4e7b16b475298310c6d07ad38f0';
+        const API_URL = 'https://api.deepseek.com/v1/chat/completions';
+
+        const SYSTEM_PROMPT = `你是通信工程专业学习助手，擅长以下领域：
+1. **DSP/数字信号处理** - FFT、滤波器设计、卷积、采样定理等
+2. **VHDL/数字电路** - 硬件描述语言、FPGA、逻辑设计
+3. **通信原理** - 调制解调(AM/FM/PSK/QAM)、编码理论、信道容量
+4. **微波技术** - 传输线理论、史密斯圆图、微波器件、天线
+
+回答要求：
+- 用通俗易懂的中文解释，适合本科生理解
+- 公式用 Unicode 字符表示（如 π, Σ, ∫），不要用 LaTeX
+- 代码用代码块格式
+- 分步骤讲解，逻辑清晰
+- 如果问题模糊，主动询问具体需求`;
+
+        let messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+        let isLoading = false;
+
+        function handleKey(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function askTopic(topic) {
+            const input = document.getElementById('userInput');
+            input.value = `我想学习${topic}相关的内容，请给我介绍一下`;
+            input.focus();
+        }
+
+        function quickAsk(question) {
+            document.getElementById('userInput').value = question;
+            sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text || isLoading) return;
+
+            isLoading = true;
+            document.getElementById('sendBtn').disabled = true;
+
+            // 添加用户消息
+            addMessage('user', text);
+            messages.push({ role: 'user', content: text });
+
+            // 清空输入
+            input.value = '';
+            input.style.height = 'auto';
+
+            // 显示加载动画
+            const typingId = showTyping();
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'deepseek-chat',
+                        messages: messages,
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    })
+                });
+
+                removeTyping(typingId);
+
+                if (!response.ok) {
+                    throw new Error(`API 错误：${response.status}`);
+                }
+
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+
+                messages.push({ role: 'assistant', content: reply });
+                addMessage('ai', reply);
+
+            } catch (error) {
+                removeTyping(typingId);
+                addMessage('ai', `出错了：${error.message}。请检查网络连接或 API Key。`);
+            } finally {
+                isLoading = false;
+                document.getElementById('sendBtn').disabled = false;
+                input.focus();
+            }
+        }
+
+        function addMessage(role, content) {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.textContent = role === 'user' ? '👤' : '🤖';
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerHTML = formatMessage(content);
+
+            div.appendChild(avatar);
+            div.appendChild(bubble);
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatMessage(text) {
+            // 代码块
+            text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+            // 行内代码
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // 标题
+            text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+            text = text.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+            // 粗体
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // 列表
+            text = text.replace(/^\* (.+)$/gm, '<li>$1</li>');
+            text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
+            text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            // 段落
+            text = text.replace(/\n\n/g, '</p><p>');
+            text = '<p>' + text + '</p>';
+            text = text.replace(/\n/g, '<br>');
+            // 清理
+            text = text.replace(/<p><\/p>/g, '');
+            text = text.replace(/<p>(<h3>)/g, '$1');
+            text = text.replace(/(<\/h3>)<\/p>/g, '$1');
+            text = text.replace(/<p>(<ul>)/g, '$1');
+            text = text.replace(/(<\/ul>)<\/p>/g, '$1');
+            text = text.replace(/<p>(<pre>)/g, '$1');
+            text = text.replace(/(<\/pre>)<\/p>/g, '$1');
+            return text;
+        }
+
+        function showTyping() {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = 'message ai';
+            div.id = 'typing-' + Date.now();
+
+            div.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="bubble">
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div.id;
+        }
+
+        function removeTyping(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // 自动调整 textarea 高度
+        document.getElementById('userInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // 分享对话功能
+        function shareConversation() {
+            // 过滤掉 system prompt，只保留用户和 AI 的对话
+            const chatMessages = messages.filter(m => m.role !== 'system');
+            if (chatMessages.length === 0) {
+                alert('还没有对话内容，先聊点什么再分享吧');
+                return;
+            }
+
+            // 编码为 base64
+            const json = JSON.stringify(chatMessages);
+            const encoded = btoa(unescape(encodeURIComponent(json)));
+
+            // 生成分享链接
+            const url = window.location.origin + window.location.pathname + '#share=' + encoded;
+
+            // 复制到剪贴板
+            navigator.clipboard.writeText(url).then(() => {
+                // 临时改变按钮文字作为反馈
+                const btn = document.querySelector('.topic-tag[onclick="shareConversation()"]');
+                const original = btn.textContent;
+                btn.textContent = '已复制!';
+                btn.style.background = '#bbf7d0';
+                setTimeout(() => {
+                    btn.textContent = original;
+                    btn.style.background = '#dcfce7';
+                }, 2000);
+            }).catch(() => {
+                // 如果剪贴板失败，显示链接让用户手动复制
+                prompt('复制以下链接分享：', url);
+            });
+        }
+
+        // 页面加载时检查是否有分享的对话
+        function loadSharedConversation() {
+            const hash = window.location.hash;
+            if (!hash.startsWith('#share=')) return;
+
+            const encoded = hash.substring(7);
+            try {
+                const json = decodeURIComponent(escape(atob(encoded)));
+                const chatMessages = JSON.parse(json);
+
+                if (!Array.isArray(chatMessages) || chatMessages.length === 0) return;
+
+                // 清空默认欢迎消息
+                const container = document.getElementById('chatContainer');
+                container.innerHTML = '';
+
+                // 恢复 messages 数组（加上 system prompt）
+                messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+
+                // 渲染每条消息
+                chatMessages.forEach(msg => {
+                    messages.push(msg);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', msg.content);
+                });
+
+                // 显示提示
+                const notice = document.createElement('div');
+                notice.style.cssText = 'text-align:center;padding:8px;color:#64748b;font-size:0.85rem;';
+                notice.textContent = '— 以上是分享的对话内容，你可以继续提问 —';
+                container.appendChild(notice);
+                container.scrollTop = container.scrollHeight;
+
+            } catch (e) {
+                console.error('加载分享对话失败:', e);
+            }
+        }
+
+        // 页面加载时执行
+        loadSharedConversation();
+    </script>
+</body>
+</html>
