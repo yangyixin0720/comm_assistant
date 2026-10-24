@@ -842,6 +842,11 @@
                 const data = localStorage.getItem(STORAGE_KEY);
                 if (data) {
                     conversations = JSON.parse(data);
+                    // 重置所有卡死的 isLoading 状态（防止页面刷新后按钮永久禁用）
+                    Object.values(conversations).forEach(conv => {
+                        conv.isLoading = false;
+                    });
+                    saveConversations();
                 }
             } catch (e) {
                 console.error('加载对话列表失败:', e);
@@ -1182,6 +1187,9 @@
                         // 再次加入用户原始消息，让AI基于上下文回答
                         conv.messages.push({ role: 'user', content: content });
 
+                        const searchController = new AbortController();
+                        const searchTimeoutId = setTimeout(() => searchController.abort(), 60000);
+
                         const response = await fetch(API_URL, {
                             method: 'POST',
                             headers: {
@@ -1193,8 +1201,11 @@
                                 messages: conv.messages,
                                 temperature: 0.7,
                                 max_tokens: 2000
-                            })
+                            }),
+                            signal: searchController.signal
                         });
+
+                        clearTimeout(searchTimeoutId);
 
                         removeSearchStatus(statusId2);
                         removeTyping(typingId);
@@ -1234,44 +1245,52 @@
                 removeTyping(typingId);
                 addMessage('ai', `出错了：${error.message}。请检查网络连接或 API Key。`);
             } finally {
+                // 无论如何都要重置状态，防止按钮卡死
                 conv.isLoading = false;
-                if (currentConvId === conv.id) {
-                    document.getElementById('sendBtn').disabled = false;
-                    input.focus();
-                }
+                saveConversations();
+                document.getElementById('sendBtn').disabled = false;
+                input.focus();
             }
         }
 
-        // 通用AI调用函数
+        // 通用AI调用函数（带超时保护）
         async function callAI(conv, content, typingId, searchResults) {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${API_KEY}`
-                },
-                body: JSON.stringify({
-                    model: 'Qwen/Qwen3-VL-32B-Instruct',
-                    messages: conv.messages,
-                    temperature: 0.7,
-                    max_tokens: 2000
-                })
-            });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
 
-            removeTyping(typingId);
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'Qwen/Qwen3-VL-32B-Instruct',
+                        messages: conv.messages,
+                        temperature: 0.7,
+                        max_tokens: 2000
+                    }),
+                    signal: controller.signal
+                });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `API 错误：${response.status}`);
+                removeTyping(typingId);
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `API 错误：${response.status}`);
+                }
+
+                const data = await response.json();
+                const reply = data.choices[0].message.content;
+
+                conv.messages.push({ role: 'assistant', content: reply });
+                conv.updatedAt = Date.now();
+                saveConversations();
+                addMessage('ai', reply, [], true, searchResults);
+            } finally {
+                clearTimeout(timeoutId);
             }
-
-            const data = await response.json();
-            const reply = data.choices[0].message.content;
-
-            conv.messages.push({ role: 'assistant', content: reply });
-            conv.updatedAt = Date.now();
-            saveConversations();
-            addMessage('ai', reply, [], true, searchResults);
         }
 
         function addMessage(role, text, images, save = true, searchSources = []) {
