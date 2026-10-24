@@ -704,6 +704,216 @@
             text-align: center;
             min-height: 1.5em;
         }
+
+        /* 右侧工作区面板 */
+        .workspace-panel {
+            width: 280px;
+            background: var(--card);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: width 0.25s ease, opacity 0.25s ease;
+        }
+        .workspace-panel.collapsed {
+            width: 0;
+            border-left: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .workspace-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--sidebar-bg);
+        }
+        .workspace-header h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .workspace-close {
+            background: none;
+            border: none;
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .workspace-close:hover { background: var(--border); }
+        .workspace-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        .workspace-empty {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            padding: 40px 16px;
+            line-height: 1.8;
+        }
+        .workspace-empty .empty-icon { font-size: 2.5rem; opacity: 0.4; margin-bottom: 8px; }
+        .workspace-drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .workspace-drop-zone:hover, .workspace-drop-zone.dragover {
+            border-color: var(--primary);
+            background: #eef2ff;
+            color: var(--primary);
+        }
+        .workspace-section-title {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 12px 0 8px;
+            padding-left: 4px;
+        }
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .workspace-item {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .workspace-item:hover {
+            transform: scale(1.03);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .workspace-item img {
+            width: 100%;
+            height: 90px;
+            object-fit: cover;
+            display: block;
+        }
+        .workspace-item .item-name {
+            padding: 4px 6px;
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            background: var(--card);
+        }
+        .workspace-item .item-remove {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .workspace-item:hover .item-remove { display: flex; }
+        .workspace-file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card);
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .workspace-file-item:hover { background: var(--sidebar-hover); }
+        .workspace-file-item .file-icon { font-size: 1.4rem; }
+        .workspace-file-item .file-info { flex: 1; min-width: 0; }
+        .workspace-file-item .file-name {
+            font-size: 0.8rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .workspace-file-item .file-size { font-size: 0.7rem; color: var(--text-secondary); }
+        .workspace-file-item .file-remove {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .workspace-file-item .file-remove:hover { background: #fee2e2; color: #dc2626; }
+        .workspace-toggle {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+        .workspace-toggle:hover { border-color: var(--primary); color: var(--primary); }
+        .workspace-toggle.active { background: #eef2ff; border-color: var(--primary); color: var(--primary); }
+
+        /* 图片预览弹窗 */
+        .lightbox {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+        .lightbox.active { display: flex; }
+        .lightbox img {
+            max-width: 90%;
+            max-height: 90%;
+            border-radius: 8px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.5);
+        }
+
+        @media (max-width: 768px) {
+            .workspace-panel {
+                position: fixed;
+                top: 0; right: 0; bottom: 0;
+                z-index: 200;
+                width: 280px;
+                box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+            }
+            .workspace-panel.collapsed {
+                width: 0;
+                box-shadow: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -718,6 +928,7 @@
         <div class="header-actions">
             <span class="feynman-badge" id="feynmanBadge">🎓 费曼模式</span>
             <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊 结束评估</button>
+            <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂 工作区</button>
             <span class="header-btn" onclick="shareConversation()">分享对话</span>
         </div>
     </header>
@@ -777,6 +988,26 @@
                 </div>
             </div>
         </div>
+
+        <!-- 右侧工作区面板 -->
+        <div class="workspace-panel collapsed" id="workspacePanel">
+            <div class="workspace-header">
+                <h3>📂 工作区</h3>
+                <button class="workspace-close" onclick="toggleWorkspace()">✕</button>
+            </div>
+            <div class="workspace-content" id="workspaceContent">
+                <div class="workspace-drop-zone" id="workspaceDrop" onclick="document.getElementById('workspaceFileInput').click()">
+                    点击上传或拖拽文件到此处<br>支持图片、PDF、文档等
+                </div>
+                <input type="file" id="workspaceFileInput" multiple accept="image/*,.pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx" style="display:none" onchange="handleWorkspaceUpload(event)">
+                <div id="workspaceItems"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片预览弹窗 -->
+    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+        <img id="lightboxImg" src="" alt="预览">
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
@@ -1320,7 +1551,8 @@
                 updatedAt: Date.now(),
                 isLoading: false,
                 currentImages: [],
-                inputText: ''
+                inputText: '',
+                workspaceFiles: []
             };
         }
 
@@ -1388,6 +1620,7 @@
             renderMessages();
             renderConversationList();
             updateFeynmanUI();
+            if (workspaceOpen) renderWorkspace();
             
             // Close sidebar on mobile
             if (window.innerWidth <= 768) {
@@ -2035,6 +2268,183 @@
             if (conv) {
                 conv.inputText = this.value;
             }
+        });
+
+        // ===== 工作区面板 =====
+
+        let workspaceOpen = false;
+
+        function toggleWorkspace() {
+            workspaceOpen = !workspaceOpen;
+            const panel = document.getElementById('workspacePanel');
+            const toggle = document.getElementById('workspaceToggle');
+            panel.classList.toggle('collapsed', !workspaceOpen);
+            toggle.classList.toggle('active', workspaceOpen);
+            if (workspaceOpen) renderWorkspace();
+        }
+
+        function getWorkspaceFiles() {
+            const conv = getCurrentConversation();
+            if (!conv) return [];
+            if (!conv.workspaceFiles) conv.workspaceFiles = [];
+            return conv.workspaceFiles;
+        }
+
+        function handleWorkspaceUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            event.target.value = '';
+
+            const conv = getCurrentConversation();
+            if (!conv) return;
+            if (!conv.workspaceFiles) conv.workspaceFiles = [];
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const item = {
+                        id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        dataUrl: e.target.result,
+                        addedAt: Date.now()
+                    };
+                    conv.workspaceFiles.push(item);
+                    saveConversations();
+                    renderWorkspace();
+                };
+                // 图片用 DataURL，其他文件只存元信息
+                if (file.type.startsWith('image/') && file.size < 5 * 1024 * 1024) {
+                    reader.readAsDataURL(file);
+                } else if (file.size < 2 * 1024 * 1024) {
+                    reader.readAsDataURL(file);
+                } else {
+                    // 大文件只存信息不存内容
+                    conv.workspaceFiles.push({
+                        id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        dataUrl: null,
+                        addedAt: Date.now()
+                    });
+                    saveConversations();
+                    renderWorkspace();
+                }
+            });
+        }
+
+        function removeWorkspaceItem(id) {
+            const conv = getCurrentConversation();
+            if (!conv || !conv.workspaceFiles) return;
+            conv.workspaceFiles = conv.workspaceFiles.filter(f => f.id !== id);
+            saveConversations();
+            renderWorkspace();
+        }
+
+        function renderWorkspace() {
+            const container = document.getElementById('workspaceItems');
+            const files = getWorkspaceFiles();
+
+            if (files.length === 0) {
+                container.innerHTML = '<div class="workspace-empty"><div class="empty-icon">📁</div>还没有文件<br>上传图片或文档到工作区<br>对话时可随时引用</div>';
+                return;
+            }
+
+            const images = files.filter(f => f.type && f.type.startsWith('image/'));
+            const others = files.filter(f => !f.type || !f.type.startsWith('image/'));
+
+            let html = '';
+
+            if (images.length > 0) {
+                html += '<div class="workspace-section-title">图片 (' + images.length + ')</div>';
+                html += '<div class="workspace-grid">';
+                images.forEach(img => {
+                    html += `<div class="workspace-item" onclick="openLightbox('${img.dataUrl || ''}')">
+                        <img src="${img.dataUrl || ''}" alt="${escapeHtml(img.name)}">
+                        <div class="item-name">${escapeHtml(img.name)}</div>
+                        <button class="item-remove" onclick="event.stopPropagation();removeWorkspaceItem('${img.id}')">×</button>
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            if (others.length > 0) {
+                html += '<div class="workspace-section-title">文件 (' + others.length + ')</div>';
+                others.forEach(file => {
+                    const icon = getFileIcon(file.type, file.name);
+                    const size = formatFileSize(file.size);
+                    html += `<div class="workspace-file-item">
+                        <span class="file-icon">${icon}</span>
+                        <div class="file-info">
+                            <div class="file-name">${escapeHtml(file.name)}</div>
+                            <div class="file-size">${size}</div>
+                        </div>
+                        <button class="file-remove" onclick="removeWorkspaceItem('${file.id}')">×</button>
+                    </div>`;
+                });
+            }
+
+            container.innerHTML = html;
+        }
+
+        function getFileIcon(type, name) {
+            if (!type) type = '';
+            if (type.includes('pdf') || name.endsWith('.pdf')) return '📕';
+            if (type.includes('word') || name.match(/\.docx?$/)) return '📘';
+            if (type.includes('excel') || name.match(/\.xlsx?$/)) return '📗';
+            if (type.includes('powerpoint') || name.match(/\.pptx?$/)) return '📙';
+            if (type.includes('text') || name.match(/\.(txt|md)$/)) return '📄';
+            if (type.includes('zip') || type.includes('rar')) return '📦';
+            return '📎';
+        }
+
+        function formatFileSize(bytes) {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        function openLightbox(src) {
+            if (!src) return;
+            document.getElementById('lightboxImg').src = src;
+            document.getElementById('lightbox').classList.add('active');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+            document.getElementById('lightboxImg').src = '';
+        }
+
+        // 拖拽上传支持
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('workspaceDrop');
+            const panel = document.getElementById('workspacePanel');
+
+            ['dragenter', 'dragover'].forEach(evt => {
+                panel.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('dragover');
+                });
+            });
+            ['dragleave', 'drop'].forEach(evt => {
+                panel.addEventListener(evt, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('dragover');
+                });
+            });
+            panel.addEventListener('drop', (e) => {
+                e.preventDefault();
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    // 复用上传逻辑
+                    const input = document.getElementById('workspaceFileInput');
+                    input.files = files;
+                    handleWorkspaceUpload({ target: input });
+                }
+            });
         });
 
         // ===== Share Conversation =====
