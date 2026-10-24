@@ -666,11 +666,10 @@
             const proxies = [
                 u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
                 u => `https://corsproxy.org/?${encodeURIComponent(u)}`,
-                u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
             ];
             for (const proxy of proxies) {
                 try {
-                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(6000) });
+                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(4000) });
                     if (resp.ok) return await resp.text();
                 } catch (e) { continue; }
             }
@@ -681,7 +680,7 @@
         async function fetchDuckDuckGoInstant(query) {
             try {
                 const resp = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`, {
-                    signal: AbortSignal.timeout(6000)
+                    signal: AbortSignal.timeout(4000)
                 });
                 if (resp.ok) {
                     const data = await resp.json();
@@ -706,7 +705,7 @@
         async function fetchWikipedia(query) {
             try {
                 const resp = await fetch(`https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&format=json&origin=*`, {
-                    signal: AbortSignal.timeout(6000)
+                    signal: AbortSignal.timeout(4000)
                 });
                 if (resp.ok) {
                     const data = await resp.json();
@@ -1158,7 +1157,16 @@
                 if (webSearchEnabled && text) {
                     const searchStatusId = showSearchStatus('正在联网搜索：' + text);
                     
-                    searchResults = await performWebSearch(text);
+                    // 给搜索加全局超时（15秒）
+                    try {
+                        searchResults = await Promise.race([
+                            performWebSearch(text),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('搜索超时')), 15000))
+                        ]);
+                    } catch (searchError) {
+                        console.log('搜索超时或失败:', searchError);
+                        searchResults = [];
+                    }
                     removeSearchStatus(searchStatusId);
                     
                     if (searchResults.length > 0) {
