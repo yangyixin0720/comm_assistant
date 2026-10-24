@@ -82,6 +82,82 @@
             --accent-border: #9dcbee;
             --accent-text: #0369a1;
         }
+        [data-theme="pink"] {
+            --primary: #ec4899;
+            --primary-hover: #db2777;
+            --bg: #fdf2f8;
+            --card: #ffffff;
+            --text: #4a1533;
+            --text-secondary: #9d6b85;
+            --border: #fbcfe8;
+            --user-msg: #ec4899;
+            --ai-msg: #fce7f3;
+            --sidebar-bg: #fceff7;
+            --sidebar-hover: #fbdcef;
+            --sidebar-active: #fbcfe8;
+            --chip-bg: #fce7f3;
+            --code-inline-bg: #fbcfe8;
+            --accent-soft: #fbcfe8;
+            --accent-border: #f9a8d4;
+            --accent-text: #9d174d;
+        }
+        [data-theme="orange"] {
+            --primary: #f97316;
+            --primary-hover: #ea580c;
+            --bg: #fff7ed;
+            --card: #ffffff;
+            --text: #431407;
+            --text-secondary: #9a6b4f;
+            --border: #fed7aa;
+            --user-msg: #f97316;
+            --ai-msg: #ffedd5;
+            --sidebar-bg: #fff3e6;
+            --sidebar-hover: #ffe8d1;
+            --sidebar-active: #fed7aa;
+            --chip-bg: #ffedd5;
+            --code-inline-bg: #fed7aa;
+            --accent-soft: #fed7aa;
+            --accent-border: #fdba74;
+            --accent-text: #9a3412;
+        }
+        [data-theme="coffee"] {
+            --primary: #8b5e34;
+            --primary-hover: #6f4a28;
+            --bg: #f3ece2;
+            --card: #fbf7f0;
+            --text: #3b2a1a;
+            --text-secondary: #8a7360;
+            --border: #e0d3c0;
+            --user-msg: #8b5e34;
+            --ai-msg: #efe6d8;
+            --sidebar-bg: #efe7da;
+            --sidebar-hover: #e5dac8;
+            --sidebar-active: #dccdb4;
+            --chip-bg: #e9dfcf;
+            --code-inline-bg: #ddcfb9;
+            --accent-soft: #e3d5bf;
+            --accent-border: #c9b291;
+            --accent-text: #6f4a28;
+        }
+        [data-theme="gray"] {
+            --primary: #52525b;
+            --primary-hover: #3f3f46;
+            --bg: #f4f4f5;
+            --card: #ffffff;
+            --text: #27272a;
+            --text-secondary: #71717a;
+            --border: #e4e4e7;
+            --user-msg: #52525b;
+            --ai-msg: #ececee;
+            --sidebar-bg: #f0f0f1;
+            --sidebar-hover: #e6e6e8;
+            --sidebar-active: #dcdcdf;
+            --chip-bg: #e8e8ea;
+            --code-inline-bg: #dcdcdf;
+            --accent-soft: #e0e0e3;
+            --accent-border: #b9b9bf;
+            --accent-text: #3f3f46;
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background: var(--bg);
@@ -144,9 +220,9 @@
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             padding: 6px;
             z-index: 200;
-            min-width: 150px;
+            min-width: 250px;
         }
-        .theme-menu.open { display: block; }
+        .theme-menu.open { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; }
         .theme-menu-item {
             display: flex;
             align-items: center;
@@ -990,22 +1066,6 @@
             line-height: 1.8;
         }
         .workspace-empty .empty-icon { font-size: 2.5rem; opacity: 0.4; margin-bottom: 8px; }
-        .workspace-drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            color: var(--text-secondary);
-            font-size: 0.8rem;
-            margin-bottom: 12px;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-        .workspace-drop-zone:hover, .workspace-drop-zone.dragover {
-            border-color: var(--primary);
-            background: #eef2ff;
-            color: var(--primary);
-        }
         .workspace-section-title {
             font-size: 0.75rem;
             font-weight: 600;
@@ -1195,6 +1255,18 @@
                     <div class="theme-menu-item" data-theme-choice="blue" onclick="applyTheme('blue')">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#0ea5e9,#eef6fb)"></span>海洋蓝
                     </div>
+                    <div class="theme-menu-item" data-theme-choice="pink" onclick="applyTheme('pink')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#ec4899,#fdf2f8)"></span>樱花粉
+                    </div>
+                    <div class="theme-menu-item" data-theme-choice="orange" onclick="applyTheme('orange')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#f97316,#fff7ed)"></span>暖阳橙
+                    </div>
+                    <div class="theme-menu-item" data-theme-choice="coffee" onclick="applyTheme('coffee')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#8b5e34,#f3ece2)"></span>拿铁咖啡
+                    </div>
+                    <div class="theme-menu-item" data-theme-choice="gray" onclick="applyTheme('gray')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#52525b,#f4f4f5)"></span>石墨灰
+                    </div>
                 </div>
             </div>
             <span class="header-btn" onclick="shareConversation()">分享对话</span>
@@ -1273,10 +1345,6 @@
                 </div>
             </div>
             <div class="workspace-content" id="workspaceContent">
-                <div class="workspace-drop-zone" id="workspaceDrop" onclick="document.getElementById('workspaceFileInput').click()">
-                    点击上传或拖拽文件到此处<br>支持图片、PDF、文档等
-                </div>
-                <input type="file" id="workspaceFileInput" multiple accept="image/*,.pdf,.doc,.docx,.txt,.md,.ppt,.pptx,.xls,.xlsx" style="display:none" onchange="handleWorkspaceUpload(event)">
                 <div id="workspaceItems"></div>
             </div>
         </div>
@@ -2866,13 +2934,6 @@
             showToast('工作区已清空');
         }
 
-        function handleWorkspaceUpload(event) {
-            const files = event.target.files;
-            if (!files || files.length === 0) return;
-            event.target.value = '';
-            Array.from(files).forEach(file => pushWorkspaceFile(file, false));
-        }
-
         // 将文件存入当前对话工作区；metaOnly=true 时只存元信息不存内容
         function pushWorkspaceFile(file, metaOnly) {
             const conv = getCurrentConversation();
@@ -2923,7 +2984,7 @@
             const files = getWorkspaceFiles();
 
             if (files.length === 0) {
-                container.innerHTML = '<div class="workspace-empty"><div class="empty-icon">📁</div>还没有文件<br>上传图片或文档到工作区<br>对话时可随时引用</div>';
+                container.innerHTML = '<div class="workspace-empty"><div class="empty-icon">📁</div>还没有文件<br>对话中发送的附件会自动存入这里<br>点击文件可附加到对话</div>';
                 return;
             }
 
@@ -3057,31 +3118,19 @@
             document.getElementById('lightboxImg').src = '';
         }
 
-        // 拖拽上传支持
+        // 拖拽上传支持（直接拖到工作区面板）
         document.addEventListener('DOMContentLoaded', () => {
-            const dropZone = document.getElementById('workspaceDrop');
             const panel = document.getElementById('workspacePanel');
-
             ['dragenter', 'dragover'].forEach(evt => {
                 panel.addEventListener(evt, (e) => {
                     e.preventDefault();
-                    dropZone.classList.add('dragover');
-                });
-            });
-            ['dragleave', 'drop'].forEach(evt => {
-                panel.addEventListener(evt, (e) => {
-                    e.preventDefault();
-                    dropZone.classList.remove('dragover');
                 });
             });
             panel.addEventListener('drop', (e) => {
                 e.preventDefault();
                 const files = e.dataTransfer.files;
                 if (files.length > 0) {
-                    // 复用上传逻辑
-                    const input = document.getElementById('workspaceFileInput');
-                    input.files = files;
-                    handleWorkspaceUpload({ target: input });
+                    Array.from(files).forEach(file => pushWorkspaceFile(file, false));
                 }
             });
         });
