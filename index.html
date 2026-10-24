@@ -951,6 +951,27 @@
             line-height: 1;
         }
         .workspace-item:hover .item-remove { display: flex; }
+        .workspace-item .item-zoom {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            font-size: 0.65rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .workspace-item:hover .item-zoom { display: flex; }
+        @media (max-width: 768px) {
+            .workspace-item .item-zoom, .workspace-item .item-remove { display: flex; }
+        }
         .workspace-file-item {
             display: flex;
             align-items: center;
@@ -2222,25 +2243,28 @@
             input.style.height = 'auto';
             conv.inputText = '';
             
-            // 附件随消息发送后自动存入工作区
+            // 附件随消息发送后自动存入工作区（从工作区引用的不重复保存）
             if (pending.length > 0) {
-                if (!conv.workspaceFiles) conv.workspaceFiles = [];
-                pending.forEach(f => {
-                    let dataUrl = f.dataUrl;
-                    if (!dataUrl && f.content) {
-                        dataUrl = 'data:' + (f.type || 'text/plain') + ';charset=utf-8,' + encodeURIComponent(f.content);
-                    }
-                    conv.workspaceFiles.push({
-                        id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
-                        name: f.name,
-                        size: f.size,
-                        type: f.type,
-                        dataUrl: dataUrl || null,
-                        addedAt: Date.now()
+                const newFiles = pending.filter(f => !f.fromWorkspace);
+                if (newFiles.length > 0) {
+                    if (!conv.workspaceFiles) conv.workspaceFiles = [];
+                    newFiles.forEach(f => {
+                        let dataUrl = f.dataUrl;
+                        if (!dataUrl && f.content) {
+                            dataUrl = 'data:' + (f.type || 'text/plain') + ';charset=utf-8,' + encodeURIComponent(f.content);
+                        }
+                        conv.workspaceFiles.push({
+                            id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                            name: f.name,
+                            size: f.size,
+                            type: f.type,
+                            dataUrl: dataUrl || null,
+                            addedAt: Date.now()
+                        });
                     });
-                });
-                showToast(pending.length + ' 个附件已存入工作区');
-                if (workspaceOpen) renderWorkspace();
+                    showToast(newFiles.length + ' 个附件已存入工作区');
+                    if (workspaceOpen) renderWorkspace();
+                }
             }
             clearPending(conv);
             saveConversations();
@@ -2759,12 +2783,13 @@
             let html = '';
 
             if (images.length > 0) {
-                html += '<div class="workspace-section-title">图片 (' + images.length + ')</div>';
+                html += '<div class="workspace-section-title">图片 (' + images.length + ')·点击附加到对话</div>';
                 html += '<div class="workspace-grid">';
                 images.forEach(img => {
-                    html += `<div class="workspace-item" onclick="openLightbox('${img.dataUrl || ''}')">
+                    html += `<div class="workspace-item" onclick="attachWorkspaceItem('${img.id}')">
                         <img src="${img.dataUrl || ''}" alt="${escapeHtml(img.name)}">
                         <div class="item-name">${escapeHtml(img.name)}</div>
+                        <button class="item-zoom" onclick="event.stopPropagation();openLightbox('${img.dataUrl || ''}')">🔍</button>
                         <button class="item-remove" onclick="event.stopPropagation();removeWorkspaceItem('${img.id}')">×</button>
                     </div>`;
                 });
@@ -2772,22 +2797,85 @@
             }
 
             if (others.length > 0) {
-                html += '<div class="workspace-section-title">文件 (' + others.length + ')</div>';
+                html += '<div class="workspace-section-title">文件 (' + others.length + ')·点击附加到对话</div>';
                 others.forEach(file => {
                     const icon = getFileIcon(file.type, file.name);
                     const size = formatFileSize(file.size);
-                    html += `<div class="workspace-file-item">
+                    html += `<div class="workspace-file-item" onclick="attachWorkspaceItem('${file.id}')">
                         <span class="file-icon">${icon}</span>
                         <div class="file-info">
                             <div class="file-name">${escapeHtml(file.name)}</div>
                             <div class="file-size">${size}</div>
                         </div>
-                        <button class="file-remove" onclick="removeWorkspaceItem('${file.id}')">×</button>
+                        <button class="file-remove" onclick="event.stopPropagation();removeWorkspaceItem('${file.id}')">×</button>
                     </div>`;
                 });
             }
 
             container.innerHTML = html;
+        }
+
+        // 点击工作区文件：作为附件加入输入框（与上传附件同样的小标签）
+        function attachWorkspaceItem(id) {
+            const conv = getCurrentConversation();
+            if (!conv || !conv.workspaceFiles) return;
+            const item = conv.workspaceFiles.find(f => f.id === id);
+            if (!item) return;
+            if (!conv.currentFiles) conv.currentFiles = [];
+            if (conv.currentFiles.some(f => f.fromWorkspace === id)) {
+                showToast('该文件已在输入框附件中');
+                return;
+            }
+            if (conv.currentFiles.length >= MAX_PENDING_FILES) {
+                showToast('单条消息最多附加 ' + MAX_PENDING_FILES + ' 个文件');
+                return;
+            }
+            if (!item.dataUrl) {
+                showToast('该文件只保存了名称（文件过大），没有内容可附加');
+                return;
+            }
+            const entry = {
+                id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                name: item.name,
+                size: item.size,
+                type: item.type || '',
+                dataUrl: item.dataUrl,
+                content: null,
+                fromWorkspace: id
+            };
+            const isImage = !!(item.type && item.type.startsWith('image/'));
+            if (!isImage && isTextFile({ name: item.name, type: item.type })) {
+                // 文本类文件解码出内容，发送时交给 AI 阅读
+                const text = decodeDataUrlText(item.dataUrl);
+                if (text !== null) {
+                    entry.content = text.length > MAX_CHARS_PER_FILE
+                        ? text.slice(0, MAX_CHARS_PER_FILE) + '\n...(文件内容较长，已截断)'
+                        : text;
+                    entry.dataUrl = null;
+                }
+            }
+            conv.currentFiles.push(entry);
+            saveConversations();
+            renderPending();
+            showToast('已附加「' + item.name + '」到输入框');
+        }
+
+        function decodeDataUrlText(dataUrl) {
+            try {
+                const comma = dataUrl.indexOf(',');
+                if (comma < 0) return null;
+                const meta = dataUrl.slice(0, comma);
+                const rest = dataUrl.slice(comma + 1);
+                if (meta.includes(';base64')) {
+                    const bin = atob(rest);
+                    const bytes = new Uint8Array(bin.length);
+                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                    return new TextDecoder('utf-8').decode(bytes);
+                }
+                return decodeURIComponent(rest);
+            } catch (e) {
+                return null;
+            }
         }
 
         function getFileIcon(type, name) {
