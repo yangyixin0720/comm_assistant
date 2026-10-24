@@ -580,6 +580,13 @@
             border-radius: 8px;
             font-size: 0.75rem;
         }
+        .backup-links a {
+            color: var(--primary);
+            font-size: 0.72rem;
+            text-decoration: none;
+            margin: 0 2px;
+        }
+        .backup-links a:hover { text-decoration: underline; }
         .empty-state {
             display: flex;
             flex-direction: column;
@@ -1052,7 +1059,12 @@
                 <!-- Conversations will be rendered here -->
             </div>
             <div class="sidebar-footer">
-                对话自动保存在本地浏览器
+                对话自动保存在本地浏览器<br>
+                <span class="backup-links">
+                    <a href="javascript:void(0)" onclick="exportBackup()">导出备份</a>·
+                    <a href="javascript:void(0)" onclick="document.getElementById('backupInput').click()">导入备份</a>
+                </span>
+                <input type="file" id="backupInput" accept=".json,application/json" style="display:none" onchange="importBackup(event)">
             </div>
         </div>
 
@@ -1678,6 +1690,11 @@
                 }
             } catch (e) {
                 console.error('加载对话列表失败:', e);
+                // 数据损坏时先备份原始内容，避免被新对话覆盖
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) localStorage.setItem(STORAGE_KEY + '_backup', raw);
+                } catch (e2) { /* 忽略 */ }
                 conversations = {};
             }
         }
@@ -1686,8 +1703,67 @@
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
             } catch (e) {
-                console.error('保存对话失败:', e);
+                // 存储空间不足：剥离大体积附件数据后重试，保住对话文字
+                try {
+                    Object.values(conversations).forEach(conv => {
+                        (conv.workspaceFiles || []).forEach(f => { if (f.dataUrl) f.dataUrl = null; });
+                        (conv.currentFiles || []).forEach(f => {
+                            f.dataUrl = null;
+                            if (f.content) f.content = '[附件内容因浏览器存储空间不足被移除]';
+                        });
+                    });
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+                    showToast('⚠️ 浏览器存储空间不足，已舍弃部分附件内容以保住对话记录');
+                } catch (e2) {
+                    console.error('保存对话失败:', e2);
+                    showToast('⚠️ 保存失败：浏览器存储空间不足，请导出备份后清理旧对话');
+                }
             }
+        }
+
+        // ===== 对话备份导出 / 导入 =====
+
+        function exportBackup() {
+            try {
+                const blob = new Blob([JSON.stringify(conversations)], { type: 'application/json' });
+                const a = document.createElement('a');
+                const d = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                a.href = URL.createObjectURL(blob);
+                a.download = '学习助手备份-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '.json';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+                showToast('备份文件已开始下载，请妥善保存');
+            } catch (e) {
+                showToast('导出失败：' + e.message);
+            }
+        }
+
+        function importBackup(event) {
+            const file = event.target.files && event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    const data = JSON.parse(String(ev.target.result));
+                    if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new Error('格式不正确');
+                    let count = 0;
+                    Object.keys(data).forEach(id => {
+                        const c = data[id];
+                        if (c && Array.isArray(c.messages)) { conversations[id] = c; count++; }
+                    });
+                    if (count === 0) throw new Error('没有可用对话');
+                    saveConversations();
+                    renderConversationList();
+                    const sorted = Object.values(conversations).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+                    if (sorted.length > 0) switchToConversation(sorted[0].id);
+                    showToast('已导入 ' + count + ' 条对话');
+                } catch (e) {
+                    showToast('导入失败：文件不是有效的备份文件');
+                }
+            };
+            reader.readAsText(file);
         }
 
         function createNewChat() {
