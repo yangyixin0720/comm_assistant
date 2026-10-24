@@ -435,6 +435,16 @@
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1); }
         }
+        .streaming-cursor {
+            display: inline-block;
+            animation: blink 0.8s step-end infinite;
+            color: var(--primary);
+            font-weight: bold;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
         .image-preview {
             position: relative;
             display: inline-block;
@@ -1188,7 +1198,7 @@
                         conv.messages.push({ role: 'user', content: content });
 
                         const searchController = new AbortController();
-                        const searchTimeoutId = setTimeout(() => searchController.abort(), 60000);
+                        const searchTimeoutId = setTimeout(() => searchController.abort(), 90000);
 
                         const response = await fetch(API_URL, {
                             method: 'POST',
@@ -1200,13 +1210,13 @@
                                 model: 'Qwen/Qwen3-VL-32B-Instruct',
                                 messages: conv.messages,
                                 temperature: 0.7,
-                                max_tokens: 2000
+                                max_tokens: 2000,
+                                stream: true
                             }),
                             signal: searchController.signal
                         });
 
                         clearTimeout(searchTimeoutId);
-
                         removeSearchStatus(statusId2);
                         removeTyping(typingId);
 
@@ -1215,17 +1225,64 @@
                             throw new Error(errorData.message || `API 错误：${response.status}`);
                         }
 
-                        const data = await response.json();
-                        const reply = data.choices[0].message.content;
+                        // 流式读取搜索结果回复
+                        const bubble = createStreamingBubble();
+                        let fullReply = '';
+                        const reader = response.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+                        let lastRender = 0;
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+
+                            buffer += decoder.decode(value, { stream: true });
+                            const lines = buffer.split('\n');
+                            buffer = lines.pop();
+
+                            for (const line of lines) {
+                                const trimmed = line.trim();
+                                if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                                const data = trimmed.slice(6);
+                                if (data === '[DONE]') continue;
+
+                                try {
+                                    const json = JSON.parse(data);
+                                    const delta = json.choices?.[0]?.delta?.content;
+                                    if (delta) {
+                                        fullReply += delta;
+                                        const now = Date.now();
+                                        if (now - lastRender > 100) {
+                                            bubble.innerHTML = formatMessage(fullReply) + '<span class="streaming-cursor">▊</span>';
+                                            const container = document.getElementById('chatContainer');
+                                            container.scrollTop = container.scrollHeight;
+                                            lastRender = now;
+                                        }
+                                    }
+                                } catch (e) { /* 忽略解析错误 */ }
+                            }
+                        }
+
+                        // 最终渲染
+                        bubble.innerHTML = formatMessage(fullReply);
+                        // 添加搜索来源
+                        let sourcesHtml = '<div class="search-sources"><details><summary>📋 信息来源（' + searchResults.length + ' 条）</summary>';
+                        searchResults.forEach(r => {
+                            sourcesHtml += `<div class="search-source-item"><span class="source-tag">${escapeHtml(r.source)}</span>${escapeHtml(r.title)}</div>`;
+                        });
+                        sourcesHtml += '</details></div>';
+                        bubble.innerHTML += sourcesHtml;
+
+                        const chatContainer = document.getElementById('chatContainer');
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
 
                         // 清理临时搜索上下文：截断到搜索前的消息数
                         conv.messages.length = msgCountBeforeSearch;
                         // 添加正式的AI回复
-                        conv.messages.push({ role: 'assistant', content: reply });
+                        conv.messages.push({ role: 'assistant', content: fullReply });
                         conv.updatedAt = Date.now();
                         saveConversations();
-                        
-                        addMessage('ai', reply, [], true, searchResults);
                     } else {
                         // 搜索无结果，明确告知用户
                         const statusId2 = showSearchStatus('⚠️ 联网搜索未获取到结果，将基于AI自身知识回答（可能不准确）');
@@ -1253,10 +1310,27 @@
             }
         }
 
-        // 通用AI调用函数（带超时保护）
+        // 创建流式消息气泡（逐字显示）
+        function createStreamingBubble() {
+            const container = document.getElementById('chatContainer');
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+
+            const div = document.createElement('div');
+            div.className = 'message ai';
+            div.innerHTML = `
+                <div class="avatar">🤖</div>
+                <div class="bubble"><span class="streaming-cursor">▊</span></div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div.querySelector('.bubble');
+        }
+
+        // 流式AI调用函数（逐字输出，带超时保护）
         async function callAI(conv, content, typingId, searchResults) {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+            const timeoutId = setTimeout(() => controller.abort(), 90000); // 90秒超时（流式需要更长）
 
             try {
                 const response = await fetch(API_URL, {
@@ -1269,7 +1343,8 @@
                         model: 'Qwen/Qwen3-VL-32B-Instruct',
                         messages: conv.messages,
                         temperature: 0.7,
-                        max_tokens: 2000
+                        max_tokens: 2000,
+                        stream: true
                     }),
                     signal: controller.signal
                 });
@@ -1281,13 +1356,64 @@
                     throw new Error(errorData.message || `API 错误：${response.status}`);
                 }
 
-                const data = await response.json();
-                const reply = data.choices[0].message.content;
+                // 流式读取响应
+                const bubble = createStreamingBubble();
+                let fullReply = '';
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let lastRender = 0;
 
-                conv.messages.push({ role: 'assistant', content: reply });
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // 保留未完成的行
+
+                    for (const line of lines) {
+                        const trimmed = line.trim();
+                        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                        const data = trimmed.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const json = JSON.parse(data);
+                            const delta = json.choices?.[0]?.delta?.content;
+                            if (delta) {
+                                fullReply += delta;
+                                // 每100ms更新一次显示，避免过度渲染
+                                const now = Date.now();
+                                if (now - lastRender > 100) {
+                                    bubble.innerHTML = formatMessage(fullReply) + '<span class="streaming-cursor">▊</span>';
+                                    const container = document.getElementById('chatContainer');
+                                    container.scrollTop = container.scrollHeight;
+                                    lastRender = now;
+                                }
+                            }
+                        } catch (e) { /* 忽略解析错误 */ }
+                    }
+                }
+
+                // 最终渲染（去掉光标）
+                bubble.innerHTML = formatMessage(fullReply);
+                // 添加搜索来源
+                if (searchResults && searchResults.length > 0) {
+                    let sourcesHtml = '<div class="search-sources"><details><summary>📋 信息来源（' + searchResults.length + ' 条）</summary>';
+                    searchResults.forEach(r => {
+                        sourcesHtml += `<div class="search-source-item"><span class="source-tag">${escapeHtml(r.source)}</span>${escapeHtml(r.title)}</div>`;
+                    });
+                    sourcesHtml += '</details></div>';
+                    bubble.innerHTML += sourcesHtml;
+                }
+
+                const container = document.getElementById('chatContainer');
+                container.scrollTop = container.scrollHeight;
+
+                conv.messages.push({ role: 'assistant', content: fullReply });
                 conv.updatedAt = Date.now();
                 saveConversations();
-                addMessage('ai', reply, [], true, searchResults);
             } finally {
                 clearTimeout(timeoutId);
             }
