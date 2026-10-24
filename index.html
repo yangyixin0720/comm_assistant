@@ -643,6 +643,67 @@
             background: linear-gradient(135deg, #fef3c7, #fde68a);
             border-color: #f59e0b;
         }
+
+        /* 语音输入样式 */
+        .action-btn.recording {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #dc2626;
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+        }
+        .voice-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            backdrop-filter: blur(4px);
+        }
+        .voice-overlay.active { display: flex; }
+        .voice-ripple {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: rgba(99, 102, 241, 0.3);
+            border: 3px solid #6366f1;
+            animation: ripple 1.5s infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .voice-ripple::after {
+            content: '🎤';
+            font-size: 2.5rem;
+        }
+        @keyframes ripple {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99,102,241,0.5); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 20px rgba(99,102,241,0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99,102,241,0); }
+        }
+        .voice-text {
+            color: white;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .voice-hint {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.85rem;
+        }
+        .voice-recognized {
+            color: #a5b4fc;
+            font-size: 1rem;
+            max-width: 80%;
+            text-align: center;
+            min-height: 1.5em;
+        }
     </style>
 </head>
 <body>
@@ -692,11 +753,19 @@
                             <button class="action-btn" id="searchToggle" onclick="toggleWebSearch()">
                                 🌐 联网搜索
                             </button>
+                            <button class="action-btn" id="voiceBtn" onclick="toggleVoiceInput()">
+                                🎤 语音输入
+                            </button>
                             <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
                         </div>
                         <div id="imagePreview"></div>
                     </div>
                     <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
+                </div>
+                <div class="voice-overlay" id="voiceOverlay">
+                    <div class="voice-ripple"></div>
+                    <div class="voice-text">正在听...</div>
+                    <div class="voice-hint">说完自动识别，点击任意处停止</div>
                 </div>
                 <div class="quick-actions">
                     <button class="quick-btn feynman" onclick="startFeynmanMode()">🎓 费曼学习</button>
@@ -857,6 +926,101 @@
             } else {
                 btn.classList.remove('active');
                 btn.textContent = ' 联网搜索';
+            }
+        }
+
+        // ===== 语音输入 =====
+
+        let recognition = null;
+        let isRecording = false;
+
+        function toggleVoiceInput() {
+            if (isRecording) {
+                stopVoiceInput();
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert('你的浏览器不支持语音输入，请使用 Chrome 或 Safari 浏览器');
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            let finalTranscript = '';
+
+            recognition.onstart = () => {
+                isRecording = true;
+                document.getElementById('voiceBtn').classList.add('recording');
+                document.getElementById('voiceBtn').textContent = '⏹ 停止录音';
+                const overlay = document.getElementById('voiceOverlay');
+                overlay.classList.add('active');
+                overlay.onclick = stopVoiceInput;
+            };
+
+            recognition.onresult = (event) => {
+                let interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interim += transcript;
+                    }
+                }
+                // 实时更新识别文字显示
+                const voiceText = document.querySelector('#voiceOverlay .voice-text');
+                if (voiceText) {
+                    voiceText.textContent = finalTranscript + interim || '正在听...';
+                }
+                // 同步到输入框
+                const input = document.getElementById('userInput');
+                input.value = finalTranscript + interim;
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+            };
+
+            recognition.onerror = (event) => {
+                console.error('语音识别错误:', event.error);
+                if (event.error === 'not-allowed') {
+                    alert('请允许麦克风权限后重试');
+                } else if (event.error === 'no-speech') {
+                    // 没检测到语音，自动停止
+                }
+                stopVoiceInput();
+            };
+
+            recognition.onend = () => {
+                stopVoiceInput();
+            };
+
+            try {
+                recognition.start();
+            } catch (e) {
+                alert('语音识别启动失败：' + e.message);
+            }
+        }
+
+        function stopVoiceInput() {
+            isRecording = false;
+            if (recognition) {
+                try { recognition.stop(); } catch (e) {}
+                recognition = null;
+            }
+            document.getElementById('voiceBtn').classList.remove('recording');
+            document.getElementById('voiceBtn').textContent = '🎤 语音输入';
+            const overlay = document.getElementById('voiceOverlay');
+            overlay.classList.remove('active');
+            overlay.onclick = null;
+
+            // 保存输入框内容到对话状态
+            const conv = getCurrentConversation();
+            if (conv) {
+                conv.inputText = document.getElementById('userInput').value;
             }
         }
 
