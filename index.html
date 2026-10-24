@@ -1058,25 +1058,16 @@
                     <div class="input-container">
                         <textarea id="userInput" placeholder="输入你的问题，或粘贴图片..." rows="1" onkeydown="handleKey(event)" onpaste="handlePaste(event)"></textarea>
                         <div class="input-actions">
-                            <div class="upload-wrap">
-                                <button class="action-btn" onclick="toggleUploadMenu(event)">
-                                    📎 上传附件
-                                </button>
-                                <div class="upload-menu" id="uploadMenu">
-                                    <button class="upload-menu-item" onclick="pickUpload('image')">🖼️ 上传图片<span>附加到消息，可直接提问</span></button>
-                                    <button class="upload-menu-item" onclick="pickUpload('file')">📄 上传文件<span>文本/代码文件可作为上下文</span></button>
-                                    <button class="upload-menu-item" onclick="pickUpload('folder')">📁 上传文件夹<span>整个目录存入工作区</span></button>
-                                </div>
-                            </div>
+                            <button class="action-btn" onclick="document.getElementById('fileInput').click()">
+                                📎 上传附件
+                            </button>
                             <button class="action-btn" id="searchToggle" onclick="toggleWebSearch()">
                                 🌐 联网搜索
                             </button>
                             <button class="action-btn" id="voiceBtn" onclick="toggleVoiceInput()">
                                 🎤 语音输入
                             </button>
-                            <input type="file" id="fileInput" accept="image/*" multiple style="display:none" onchange="handleFileSelect(event)">
-                            <input type="file" id="docInput" multiple style="display:none" onchange="handleDocSelect(event)">
-                            <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none" onchange="handleFolderSelect(event)">
+                            <input type="file" id="fileInput" multiple style="display:none" onchange="handleAttachSelect(event)">
                             <input type="file" id="audioInput" accept="audio/*" capture="microphone" style="display:none" onchange="handleAudioFile(event)">
                         </div>
                         <div id="imagePreview"></div>
@@ -1717,15 +1708,9 @@
             input.style.height = 'auto';
             input.style.height = Math.min(input.scrollHeight, 120) + 'px';
             
-            // Restore image state
-            if (conv.currentImages && conv.currentImages.length > 0) {
-                renderImagePreviews(conv.currentImages);
-            } else {
-                removeImage();
-            }
-            
-            // Restore text file attachment state
-            renderFilePreviews();
+            // Restore attachment state (images + files)
+            migrateLegacyImages(conv);
+            renderPending();
             
             // Update send button state
             document.getElementById('sendBtn').disabled = conv.isLoading;
@@ -1897,93 +1882,18 @@
                 if (item.type.startsWith('image/')) {
                     e.preventDefault();
                     const file = item.getAsFile();
-                    addImage(file);
+                    addPendingFiles([file]);
                     break;
                 }
             }
         }
 
-        function handleFileSelect(e) {
-            const files = Array.from(e.target.files);
-            files.forEach(file => {
-                if (file.type.startsWith('image/')) {
-                    addImage(file);
-                }
-            });
-            e.target.value = '';
-        }
-
-        function addImage(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const conv = getCurrentConversation();
-                if (conv) {
-                    if (!conv.currentImages) conv.currentImages = [];
-                    conv.currentImages.push(e.target.result);
-                    saveConversations();
-                    renderImagePreviews(conv.currentImages);
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function removeImage(index) {
-            const conv = getCurrentConversation();
-            if (conv && conv.currentImages) {
-                conv.currentImages.splice(index, 1);
-                saveConversations();
-                if (conv.currentImages.length > 0) {
-                    renderImagePreviews(conv.currentImages);
-                } else {
-                    document.getElementById('imagePreview').innerHTML = '';
-                }
-            }
-        }
-
-        function removeAllImages() {
-            const conv = getCurrentConversation();
-            if (conv) {
-                conv.currentImages = [];
-                saveConversations();
-            }
-            document.getElementById('imagePreview').innerHTML = '';
-        }
-
-        function renderImagePreviews(images) {
-            const preview = document.getElementById('imagePreview');
-            preview.innerHTML = images.map((src, i) => `
-                <div class="image-preview">
-                    <img src="${src}" alt="预览${i + 1}">
-                    <button class="remove-btn" onclick="removeImage(${i})">×</button>
-                </div>
-            `).join('');
-        }
-
-        // ===== 上传菜单与文件/文件夹附件 =====
-
-        function toggleUploadMenu(e) {
-            e.stopPropagation();
-            document.getElementById('uploadMenu').classList.toggle('show');
-        }
-
-        document.addEventListener('click', function(e) {
-            const menu = document.getElementById('uploadMenu');
-            if (menu && menu.classList.contains('show') && !e.target.closest('.upload-wrap')) {
-                menu.classList.remove('show');
-            }
-        });
-
-        function pickUpload(kind) {
-            document.getElementById('uploadMenu').classList.remove('show');
-            if (kind === 'image') document.getElementById('fileInput').click();
-            else if (kind === 'file') document.getElementById('docInput').click();
-            else document.getElementById('folderInput').click();
-        }
+        // ===== 附件上传：点击直接打开资源管理器，发送时自动存入工作区 =====
 
         const TEXT_EXTS = ['txt','md','markdown','csv','json','log','py','c','cpp','cc','h','hpp','java','js','ts','jsx','tsx','html','css','xml','yml','yaml','sh','bat','vhd','vhdl','v','sv','ver','tex','bib','ini','cfg','conf','sql','r','m','pas','asm','s'];
-        const MAX_TEXT_FILES = 5;          // 单条消息最多附加的文本文件数
+        const MAX_TEXT_FILES = 5;          // 单条消息最多注入上下文的文本文件数
         const MAX_CHARS_PER_FILE = 8000;   // 单个文本文件注入上下文的最大字符数
-        const MAX_FOLDER_FILES = 200;      // 文件夹单次最多处理文件数
+        const MAX_PENDING_FILES = 20;      // 单条消息最多附加的文件数
 
         function isTextFile(file) {
             if (file.type && (file.type.startsWith('text/') || file.type === 'application/json' || file.type === 'application/xml')) return true;
@@ -1997,88 +1907,166 @@
             return (size / 1024 / 1024).toFixed(1) + 'MB';
         }
 
-        function handleDocSelect(e) {
+        function handleAttachSelect(e) {
             const files = Array.from(e.target.files || []);
             e.target.value = '';
-            routeFiles(files, false);
+            addPendingFiles(files);
         }
 
-        function handleFolderSelect(e) {
-            const files = Array.from(e.target.files || []);
-            e.target.value = '';
-            if (files.length === 0) return;
-            routeFiles(files, true);
-        }
-
-        // 按类型分流：图片→消息附件；文本→上下文附件；其余→工作区
-        function routeFiles(files, fromFolder) {
+        // 所有文件统一进入待发送附件列表，挂在输入框上方
+        function addPendingFiles(files) {
             const conv = getCurrentConversation();
             if (!conv) { showToast('请先新建一个对话再上传文件'); return; }
             if (!conv.currentFiles) conv.currentFiles = [];
-
-            if (fromFolder && files.length > MAX_FOLDER_FILES) {
-                showToast('文件夹文件较多，仅处理前 ' + MAX_FOLDER_FILES + ' 个');
-                files = files.slice(0, MAX_FOLDER_FILES);
-            }
-
-            let imgCount = 0, textCount = 0, wsCount = 0, wsStored = 0;
-
-            files.forEach(file => {
+            let added = 0;
+            for (const file of files) {
+                if (conv.currentFiles.length >= MAX_PENDING_FILES) {
+                    showToast('单条消息最多附加 ' + MAX_PENDING_FILES + ' 个文件');
+                    break;
+                }
+                const entry = {
+                    id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                    name: file.name || '粘贴图片.png',
+                    size: file.size,
+                    type: file.type || '',
+                    dataUrl: null,
+                    content: null
+                };
+                conv.currentFiles.push(entry);
+                added++;
                 const isImage = !!(file.type && file.type.startsWith('image/'));
-                if (isImage && !fromFolder) {
-                    addImage(file);
-                    imgCount++;
-                } else if (isTextFile(file) && file.size <= 1024 * 1024 && conv.currentFiles.length < MAX_TEXT_FILES) {
-                    textCount++;
-                    const reader = new FileReader();
-                    reader.onload = ev => {
+                if (isImage && file.size <= 5 * 1024 * 1024) {
+                    const r = new FileReader();
+                    r.onload = ev => { entry.dataUrl = ev.target.result; saveConversations(); renderPending(); };
+                    r.readAsDataURL(file);
+                } else if (!isImage && isTextFile(file) && file.size <= 1024 * 1024) {
+                    const r = new FileReader();
+                    r.onload = ev => {
                         let content = String(ev.target.result || '');
                         if (content.length > MAX_CHARS_PER_FILE) {
                             content = content.slice(0, MAX_CHARS_PER_FILE) + '\n...(文件内容较长，已截断)';
                         }
-                        conv.currentFiles.push({ name: file.name, size: file.size, content: content });
+                        entry.content = content;
                         saveConversations();
-                        renderFilePreviews();
+                        renderPending();
                     };
-                    reader.readAsText(file);
-                } else {
-                    // 文件夹中的图片、以及 PDF/Office 等二进制文件 → 存入工作区
-                    pushWorkspaceFile(file, fromFolder && wsStored >= 30);
-                    if (!(fromFolder && wsStored >= 30)) wsStored++;
-                    wsCount++;
+                    r.readAsText(file);
+                } else if (!isImage && file.size <= 2 * 1024 * 1024) {
+                    const r = new FileReader();
+                    r.onload = ev => { entry.dataUrl = ev.target.result; saveConversations(); renderPending(); };
+                    r.readAsDataURL(file);
                 }
-            });
-
-            const parts = [];
-            if (imgCount) parts.push('已附加 ' + imgCount + ' 张图片');
-            if (textCount) parts.push(textCount + ' 个文本文件已作为上下文');
-            if (wsCount) parts.push(wsCount + ' 个文件已存入工作区');
-            showToast(parts.length ? parts.join(' · ') : '没有可处理的文件');
-            if (wsCount > 0 && !workspaceOpen) toggleWorkspace();
+                // 超大文件只保留名称与大小，发送时以记录形式存入工作区
+            }
+            if (added > 0) {
+                showToast('已添加 ' + added + ' 个附件，发送后自动存入工作区');
+                saveConversations();
+                renderPending();
+            }
         }
 
-        function renderFilePreviews() {
+        function renderPending() {
             const conv = getCurrentConversation();
-            const box = document.getElementById('filePreview');
-            if (!box) return;
+            const imgBox = document.getElementById('imagePreview');
+            const fileBox = document.getElementById('filePreview');
+            if (!imgBox || !fileBox) return;
             const files = (conv && conv.currentFiles) || [];
-            box.innerHTML = files.map((f, i) => `
+            const images = files.filter(f => f.type && f.type.startsWith('image/'));
+            const others = files.filter(f => !(f.type && f.type.startsWith('image/')));
+            imgBox.innerHTML = images.map(f => `
+                <div class="image-preview">
+                    <img src="${f.dataUrl || ''}" alt="${escapeHtml(f.name)}">
+                    <button class="remove-btn" onclick="removePending('${f.id}')">×</button>
+                </div>
+            `).join('');
+            fileBox.innerHTML = others.map(f => `
                 <div class="file-chip">
                     <span>📄</span>
                     <span class="file-chip-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
                     <span class="file-chip-size">${formatFileSize(f.size || 0)}</span>
-                    <button class="remove-btn" onclick="removeFileChip(${i})">×</button>
+                    <button class="remove-btn" onclick="removePending('${f.id}')">×</button>
                 </div>
             `).join('');
         }
 
-        function removeFileChip(index) {
+        function removePending(id) {
             const conv = getCurrentConversation();
             if (conv && conv.currentFiles) {
-                conv.currentFiles.splice(index, 1);
+                conv.currentFiles = conv.currentFiles.filter(f => f.id !== id);
                 saveConversations();
-                renderFilePreviews();
+                renderPending();
             }
+        }
+
+        function clearPending(conv) {
+            conv.currentFiles = [];
+            conv.currentImages = [];
+            renderPending();
+        }
+
+        // 兼容旧版本暂存的图片（currentImages 结构）
+        function migrateLegacyImages(conv) {
+            if (conv && conv.currentImages && conv.currentImages.length > 0) {
+                if (!conv.currentFiles) conv.currentFiles = [];
+                conv.currentImages.forEach((src, i) => {
+                    conv.currentFiles.push({
+                        id: 'legacy' + i + '_' + Date.now(),
+                        name: '图片' + (i + 1) + '.png',
+                        size: 0,
+                        type: 'image/png',
+                        dataUrl: src,
+                        content: null
+                    });
+                });
+                conv.currentImages = [];
+            }
+        }
+
+        // 拖拽文件夹到输入框：递归读取目录内全部文件
+        function setupInputDrop() {
+            const zone = document.querySelector('.input-container');
+            if (!zone || zone.dataset.dropBound) return;
+            zone.dataset.dropBound = '1';
+            zone.addEventListener('dragover', e => { e.preventDefault(); });
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                const entries = [];
+                if (e.dataTransfer && e.dataTransfer.items) {
+                    for (const it of e.dataTransfer.items) {
+                        const en = it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+                        if (en) entries.push(en);
+                    }
+                }
+                if (entries.length > 0) {
+                    walkEntries(entries, 0).then(files => { if (files.length) addPendingFiles(files); });
+                } else if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+                    addPendingFiles(Array.from(e.dataTransfer.files));
+                }
+            });
+        }
+
+        function walkEntries(entries, depth) {
+            const tasks = entries.map(entry => new Promise(resolve => {
+                if (entry.isFile) {
+                    entry.file(f => resolve([f]), () => resolve([]));
+                } else if (entry.isDirectory && depth < 4) {
+                    const reader = entry.createReader();
+                    const readAll = acc => new Promise(res => {
+                        reader.readEntries(list => {
+                            if (!list || list.length === 0) { res(acc); return; }
+                            walkEntries(list, depth + 1).then(inner => readAll(acc.concat(inner)).then(res));
+                        }, () => res(acc));
+                    });
+                    readAll([]).then(resolve);
+                } else {
+                    resolve([]);
+                }
+            }));
+            return Promise.all(tasks).then(arrs => {
+                let out = [];
+                arrs.forEach(a => { out = out.concat(a); });
+                return out.slice(0, 200);
+            });
         }
 
         let toastTimer = null;
@@ -2111,31 +2099,33 @@
             }
             
             const conv = getCurrentConversation();
-            const images = conv.currentImages || [];
-            const files = conv.currentFiles || [];
+            migrateLegacyImages(conv);
+            const pending = conv.currentFiles || [];
+            const images = pending.filter(f => f.type && f.type.startsWith('image/') && f.dataUrl);
+            const textFiles = pending.filter(f => f.content);
             
-            if ((!text && images.length === 0 && files.length === 0) || conv.isLoading) return;
+            if ((!text && pending.length === 0) || conv.isLoading) return;
 
             conv.isLoading = true;
             document.getElementById('sendBtn').disabled = true;
 
             // Build message content（文本文件内容作为上下文注入）
             let sendText = text;
-            if (files.length > 0) {
-                const fileContext = files.map(f => '【附件文件：' + f.name + '】\n' + f.content).join('\n\n');
+            if (textFiles.length > 0) {
+                const fileContext = textFiles.map(f => '【附件文件：' + f.name + '】\n' + f.content).join('\n\n');
                 sendText = fileContext + '\n\n' + (text ? '【我的问题】\n' + text : '请帮我分析讲解以上附件文件的内容。');
             }
             let content = [];
             images.forEach(img => {
-                content.push({ type: 'image_url', image_url: { url: img } });
+                content.push({ type: 'image_url', image_url: { url: img.dataUrl } });
             });
             if (sendText) {
                 content.push({ type: 'text', text: sendText });
             }
 
             // Display user message（气泡中只显示问题与附件标记）
-            const attachedMeta = files.map(f => ({ name: f.name, size: f.size }));
-            addMessage('user', text, images, true, [], attachedMeta);
+            const attachedMeta = pending.map(f => ({ name: f.name, size: f.size }));
+            addMessage('user', text, images.map(i => i.dataUrl), true, [], attachedMeta);
             
             // Save to conversation
             conv.messages.push({ role: 'user', content: content, displayText: text, attachedFiles: attachedMeta });
@@ -2147,10 +2137,28 @@
             input.value = '';
             input.style.height = 'auto';
             conv.inputText = '';
-            conv.currentImages = [];
-            removeAllImages();
-            conv.currentFiles = [];
-            renderFilePreviews();
+            
+            // 附件随消息发送后自动存入工作区
+            if (pending.length > 0) {
+                if (!conv.workspaceFiles) conv.workspaceFiles = [];
+                pending.forEach(f => {
+                    let dataUrl = f.dataUrl;
+                    if (!dataUrl && f.content) {
+                        dataUrl = 'data:' + (f.type || 'text/plain') + ';charset=utf-8,' + encodeURIComponent(f.content);
+                    }
+                    conv.workspaceFiles.push({
+                        id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+                        name: f.name,
+                        size: f.size,
+                        type: f.type,
+                        dataUrl: dataUrl || null,
+                        addedAt: Date.now()
+                    });
+                });
+                showToast(pending.length + ' 个附件已存入工作区');
+                if (workspaceOpen) renderWorkspace();
+            }
+            clearPending(conv);
             saveConversations();
 
             const typingId = showTyping();
@@ -2835,6 +2843,7 @@
             
             renderConversationList();
             updateFeynmanUI();
+            setupInputDrop();
         }
 
         init();
