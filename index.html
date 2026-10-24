@@ -19,6 +19,68 @@
             --sidebar-bg: #f9fafb;
             --sidebar-hover: #f3f4f6;
             --sidebar-active: #eef2ff;
+            --chip-bg: #f3f4f6;
+            --code-inline-bg: #e5e7eb;
+            --accent-soft: #eef2ff;
+            --accent-border: #c7d2fe;
+            --accent-text: #4338ca;
+        }
+        [data-theme="dark"] {
+            --primary: #818cf8;
+            --primary-hover: #6366f1;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --border: #334155;
+            --user-msg: #6366f1;
+            --ai-msg: #273449;
+            --sidebar-bg: #1e293b;
+            --sidebar-hover: #334155;
+            --sidebar-active: #312e81;
+            --chip-bg: #334155;
+            --code-inline-bg: #334155;
+            --accent-soft: #312e81;
+            --accent-border: #4338ca;
+            --accent-text: #c7d2fe;
+        }
+        [data-theme="green"] {
+            --primary: #3d8b63;
+            --primary-hover: #2f6f4e;
+            --bg: #c7edcc;
+            --card: #eaf7ec;
+            --text: #24402e;
+            --text-secondary: #5c7566;
+            --border: #b5dcc0;
+            --user-msg: #3d8b63;
+            --ai-msg: #dcf2df;
+            --sidebar-bg: #ddf1e1;
+            --sidebar-hover: #cde7d3;
+            --sidebar-active: #c2e6cd;
+            --chip-bg: #d6ecdb;
+            --code-inline-bg: #cbe6d2;
+            --accent-soft: #cde9d6;
+            --accent-border: #9ed0b0;
+            --accent-text: #2f6f4e;
+        }
+        [data-theme="blue"] {
+            --primary: #0ea5e9;
+            --primary-hover: #0284c7;
+            --bg: #eef6fb;
+            --card: #ffffff;
+            --text: #0f2942;
+            --text-secondary: #5b7794;
+            --border: #cfe3f2;
+            --user-msg: #0ea5e9;
+            --ai-msg: #e3f0f8;
+            --sidebar-bg: #e7f1f9;
+            --sidebar-hover: #d8e9f5;
+            --sidebar-active: #cde5f5;
+            --chip-bg: #e1eef8;
+            --code-inline-bg: #d3e6f4;
+            --accent-soft: #cde5f5;
+            --accent-border: #9dcbee;
+            --accent-text: #0369a1;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -56,7 +118,7 @@
         }
         .header-btn {
             padding: 6px 14px;
-            background: #f3f4f6;
+            background: var(--chip-bg);
             color: var(--text-secondary);
             border-radius: 16px;
             font-size: 0.8rem;
@@ -67,8 +129,42 @@
         }
         .header-btn:hover {
             border-color: var(--primary);
-            background: #eef2ff;
+            background: var(--accent-soft);
             color: var(--primary);
+        }
+        .theme-wrap { position: relative; }
+        .theme-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            padding: 6px;
+            z-index: 200;
+            min-width: 150px;
+        }
+        .theme-menu.open { display: block; }
+        .theme-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text);
+            transition: background 0.15s;
+        }
+        .theme-menu-item:hover { background: var(--sidebar-hover); }
+        .theme-menu-item.active { background: var(--accent-soft); font-weight: 600; }
+        .theme-swatch {
+            width: 18px; height: 18px;
+            border-radius: 5px;
+            border: 1px solid rgba(0,0,0,0.15);
+            flex-shrink: 0;
         }
         .main-layout {
             flex: 1;
@@ -278,7 +374,7 @@
             margin-bottom: 6px;
         }
         .bubble code {
-            background: #e5e7eb;
+            background: var(--code-inline-bg);
             padding: 2px 6px;
             border-radius: 4px;
             font-family: 'Courier New', monospace;
@@ -335,7 +431,10 @@
             max-height: 120px;
             line-height: 1.5;
             transition: border-color 0.2s;
+            background: var(--card);
+            color: var(--text);
         }
+        textarea::placeholder { color: var(--text-secondary); }
         textarea:focus {
             outline: none;
             border-color: var(--primary);
@@ -347,7 +446,7 @@
         }
         .action-btn {
             padding: 5px 10px;
-            background: #f9fafb;
+            background: var(--chip-bg);
             border: 1px solid var(--border);
             border-radius: 6px;
             font-size: 0.75rem;
@@ -359,14 +458,14 @@
             gap: 4px;
         }
         .action-btn:hover {
-            background: #eef2ff;
+            background: var(--accent-soft);
             color: var(--primary);
             border-color: var(--primary);
         }
         .action-btn.active {
-            background: #6366f1;
+            background: var(--primary);
             color: white;
-            border-color: #6366f1;
+            border-color: var(--primary);
         }
         .send-btn {
             padding: 12px 24px;
@@ -403,7 +502,7 @@
         }
         .quick-btn {
             padding: 6px 12px;
-            background: #f9fafb;
+            background: var(--chip-bg);
             border: 1px solid var(--border);
             border-radius: 6px;
             font-size: 0.8rem;
@@ -413,7 +512,7 @@
             font-weight: 500;
         }
         .quick-btn:hover {
-            background: #eef2ff;
+            background: var(--accent-soft);
             color: var(--primary);
             border-color: var(--primary);
         }
@@ -519,9 +618,9 @@
             gap: 6px;
             margin-top: 8px;
             padding: 5px 10px;
-            background: #eef2ff;
-            border: 1px solid #c7d2fe;
-            color: #4338ca;
+            background: var(--accent-soft);
+            border: 1px solid var(--accent-border);
+            color: var(--accent-text);
             border-radius: 8px;
             font-size: 0.75rem;
             max-width: 100%;
@@ -532,11 +631,11 @@
             white-space: nowrap;
             max-width: 180px;
         }
-        .file-chip .file-chip-size { color: #6b7280; flex-shrink: 0; }
+        .file-chip .file-chip-size { color: var(--text-secondary); flex-shrink: 0; }
         .file-chip .remove-btn {
             background: none;
             border: none;
-            color: #6b7280;
+            color: var(--text-secondary);
             cursor: pointer;
             font-size: 14px;
             line-height: 1;
@@ -549,7 +648,7 @@
             display: inline-block;
             margin: 2px 6px 2px 0;
             padding: 3px 8px;
-            background: rgba(99,102,241,0.15);
+            background: var(--accent-soft);
             border-radius: 6px;
             font-size: 0.72rem;
         }
@@ -862,6 +961,22 @@
             border-radius: 4px;
         }
         .workspace-close:hover { background: var(--border); }
+        .workspace-header-actions { display: flex; align-items: center; gap: 6px; }
+        .workspace-clear {
+            background: none;
+            border: 1px solid var(--border);
+            font-size: 0.72rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 3px 8px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .workspace-clear:hover {
+            background: #fee2e2;
+            border-color: #ef4444;
+            color: #dc2626;
+        }
         .workspace-content {
             flex: 1;
             overflow-y: auto;
@@ -1065,6 +1180,23 @@
             <span class="feynman-badge" id="feynmanBadge">🎓 费曼模式</span>
             <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊 结束评估</button>
             <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂 工作区</button>
+            <div class="theme-wrap">
+                <span class="header-btn" onclick="toggleThemeMenu(event)">🎨 主题</span>
+                <div class="theme-menu" id="themeMenu">
+                    <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#6366f1,#fafafa)"></span>默认紫
+                    </div>
+                    <div class="theme-menu-item" data-theme-choice="dark" onclick="applyTheme('dark')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#818cf8,#0f172a)"></span>暗夜黑
+                    </div>
+                    <div class="theme-menu-item" data-theme-choice="green" onclick="applyTheme('green')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#3d8b63,#c7edcc)"></span>护眼绿
+                    </div>
+                    <div class="theme-menu-item" data-theme-choice="blue" onclick="applyTheme('blue')">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#0ea5e9,#eef6fb)"></span>海洋蓝
+                    </div>
+                </div>
+            </div>
             <span class="header-btn" onclick="shareConversation()">分享对话</span>
         </div>
     </header>
@@ -1135,7 +1267,10 @@
         <div class="workspace-panel collapsed" id="workspacePanel">
             <div class="workspace-header">
                 <h3>📂 工作区</h3>
-                <button class="workspace-close" onclick="toggleWorkspace()">✕</button>
+                <div class="workspace-header-actions">
+                    <button class="workspace-clear" onclick="clearWorkspace()">🗑 清空</button>
+                    <button class="workspace-close" onclick="toggleWorkspace()">✕</button>
+                </div>
             </div>
             <div class="workspace-content" id="workspaceContent">
                 <div class="workspace-drop-zone" id="workspaceDrop" onclick="document.getElementById('workspaceFileInput').click()">
@@ -1157,6 +1292,7 @@
         const API_KEY = 'sk-ybhpobmfwuktarckyoggpwsiultahfpxffjjekciuynujjtx';
         const API_URL = 'https://api.siliconflow.cn/v1/chat/completions';
         const STORAGE_KEY = 'learning_assistant_conversations';
+        const THEME_KEY = 'learning_assistant_theme';
 
         const SYSTEM_PROMPT = `你是一个通用的学习助手，帮助学生理解各种学科知识。
 
@@ -2716,6 +2852,20 @@
             return conv.workspaceFiles;
         }
 
+        function clearWorkspace() {
+            const conv = getCurrentConversation();
+            if (!conv) { showToast('请先选择或新建一个对话'); return; }
+            if (!conv.workspaceFiles || conv.workspaceFiles.length === 0) {
+                showToast('工作区已经是空的');
+                return;
+            }
+            if (!confirm('确定清空当前对话工作区的所有文件吗？此操作不可恢复。')) return;
+            conv.workspaceFiles = [];
+            saveConversations();
+            renderWorkspace();
+            showToast('工作区已清空');
+        }
+
         function handleWorkspaceUpload(event) {
             const files = event.target.files;
             if (!files || files.length === 0) return;
@@ -3038,6 +3188,38 @@
 
         // ===== Initialization =====
 
+        // ============ 个性化主题 ============
+        function applyTheme(name) {
+            if (name === 'default') {
+                document.documentElement.removeAttribute('data-theme');
+            } else {
+                document.documentElement.setAttribute('data-theme', name);
+            }
+            try { localStorage.setItem(THEME_KEY, name); } catch (e) {}
+            document.querySelectorAll('[data-theme-choice]').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-theme-choice') === name);
+            });
+            const menu = document.getElementById('themeMenu');
+            if (menu) menu.classList.remove('open');
+        }
+
+        function toggleThemeMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById('themeMenu');
+            if (menu) menu.classList.toggle('open');
+        }
+
+        function initTheme() {
+            let saved = 'default';
+            try { saved = localStorage.getItem(THEME_KEY) || 'default'; } catch (e) {}
+            applyTheme(saved);
+            document.addEventListener('click', (e) => {
+                const wrap = document.querySelector('.theme-wrap');
+                const menu = document.getElementById('themeMenu');
+                if (menu && wrap && !wrap.contains(e.target)) menu.classList.remove('open');
+            });
+        }
+
         function init() {
             loadConversations();
             
@@ -3058,6 +3240,7 @@
             renderConversationList();
             updateFeynmanUI();
             setupInputDrop();
+            initTheme();
         }
 
         init();
