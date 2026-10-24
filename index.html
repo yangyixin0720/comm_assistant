@@ -191,6 +191,8 @@
             display: flex;
             gap: 8px;
             align-items: center;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
         .header-btn {
             padding: 6px 14px;
@@ -483,6 +485,7 @@
             display: flex;
             gap: 4px;
             justify-content: flex-end;
+            flex-wrap: wrap;
             margin-top: 8px;
             opacity: 0;
             transition: opacity 0.15s;
@@ -537,6 +540,79 @@
             box-shadow: 0 4px 14px rgba(0,0,0,0.25);
         }
         .quote-float.show { display: block; }
+        /* 通用模态框 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15,23,42,0.45);
+            z-index: 400;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-card {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: min(720px, 100%);
+            max-height: 82vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+        }
+        .modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-head h3 { font-size: 1rem; }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        .modal-close:hover { background: var(--sidebar-hover); }
+        .modal-body { padding: 16px 18px; overflow-y: auto; }
+        .modal-toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+        .modal-loading { text-align: center; color: var(--text-secondary); padding: 40px 0; font-size: 0.9rem; line-height: 1.8; }
+        /* 思维导图树 */
+        .mm-tree ul { list-style: none; padding-left: 18px; border-left: 1px dashed var(--border); margin-left: 6px; }
+        .mm-tree > ul { border-left: none; padding-left: 0; margin-left: 0; }
+        .mm-node { margin: 2px 0; }
+        .mm-row { display: flex; align-items: flex-start; gap: 6px; padding: 4px 8px; border-radius: 8px; }
+        .mm-row:hover { background: var(--sidebar-hover); }
+        .mm-caret { background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 0.7rem; padding: 2px 4px; flex-shrink: 0; }
+        .mm-label { font-size: 0.88rem; line-height: 1.5; }
+        .mm-ask { margin-left: auto; background: none; border: none; color: var(--primary); font-size: 0.72rem; cursor: pointer; opacity: 0; flex-shrink: 0; padding: 2px 6px; border-radius: 6px; }
+        .mm-row:hover .mm-ask { opacity: 1; }
+        .mm-node.collapsed > ul { display: none; }
+        /* 自测出题 */
+        .quiz-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+        .quiz-tab { padding: 5px 12px; border-radius: 14px; border: 1px solid var(--border); background: var(--chip-bg); color: var(--text-secondary); font-size: 0.8rem; cursor: pointer; }
+        .quiz-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .quiz-q { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+        .quiz-q-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; line-height: 1.6; }
+        .quiz-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; line-height: 1.5; }
+        .quiz-opt:hover { background: var(--sidebar-hover); }
+        .quiz-opt input { margin-top: 3px; }
+        .quiz-opt.correct { background: rgba(34,197,94,0.14); }
+        .quiz-opt.wrong { background: rgba(239,68,68,0.14); }
+        .quiz-explain { margin-top: 8px; font-size: 0.8rem; color: var(--text-secondary); background: var(--sidebar-bg); border-radius: 8px; padding: 8px 10px; display: none; line-height: 1.6; white-space: pre-wrap; }
+        .quiz-q.graded .quiz-explain { display: block; }
+        .quiz-score { font-size: 0.95rem; font-weight: 700; color: var(--primary); margin-bottom: 12px; }
+        .wrong-item { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; font-size: 0.85rem; }
+        .wrong-item .wrong-q { font-weight: 600; margin-bottom: 6px; line-height: 1.5; }
+        .wrong-item .wrong-meta { color: var(--text-secondary); font-size: 0.75rem; margin-bottom: 6px; }
+        .wrong-actions { display: flex; gap: 8px; }
         .input-area {
             background: var(--card);
             border-top: 1px solid var(--border);
@@ -1300,6 +1376,9 @@
             <span class="feynman-badge" id="feynmanBadge">🎓 费曼模式</span>
             <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊 结束评估</button>
             <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂 工作区</button>
+            <span class="header-btn" onclick="openMindmap()">🗺 思维导图</span>
+            <span class="header-btn" onclick="openNotes()">📝 笔记</span>
+            <span class="header-btn" onclick="openQuiz()">✍️ 测验</span>
             <div class="theme-wrap">
                 <span class="header-btn" onclick="toggleThemeMenu(event)">🎨 主题</span>
                 <div class="theme-menu" id="themeMenu">
@@ -1413,6 +1492,16 @@
     <!-- 图片预览弹窗 -->
     <div class="lightbox" id="lightbox" onclick="closeLightbox()">
         <img id="lightboxImg" src="" alt="预览">
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this) closeModal()">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3 id="modalTitle"></h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
     </div>
 
     <button id="quoteFloat" class="quote-float" onmousedown="event.preventDefault()" onclick="quoteSelection()">❝ 引用选中</button>
@@ -2880,7 +2969,7 @@
                 html += '</details></div>';
             }
             bubble.innerHTML = html;
-            attachMsgActions(bubble);
+            attachMsgActions(bubble, role === 'ai');
             enhanceCodeBlocks(bubble);
 
             div.appendChild(avatar);
@@ -2946,14 +3035,38 @@
             showToast('已引用到输入框，可继续补充你的问题');
         }
 
-        // 给气泡加 复制/引用 操作栏
-        function attachMsgActions(bubble) {
+        // 给气泡加 复制/引用 操作栏（AI 回复额外加追问快捷动作）
+        function attachMsgActions(bubble, isAI) {
             if (!bubble || bubble.querySelector('.msg-actions')) return;
+            if (isAI === undefined) isAI = !!bubble.closest('.message.ai');
             const actions = document.createElement('div');
             actions.className = 'msg-actions';
-            actions.innerHTML = '<button class="msg-action-btn" onclick="copyMessageText(this)">📋 复制</button>' +
-                                '<button class="msg-action-btn" onclick="quoteMessage(this)">❝ 引用</button>';
+            let html = '<button class="msg-action-btn" onclick="copyMessageText(this)">📋 复制</button>' +
+                       '<button class="msg-action-btn" onclick="quoteMessage(this)">❝ 引用</button>';
+            if (isAI) {
+                html += '<button class="msg-action-btn" onclick="followUp(this,\'deeper\')">🔍 讲深一点</button>' +
+                        '<button class="msg-action-btn" onclick="followUp(this,\'simpler\')">💡 讲简单点</button>' +
+                        '<button class="msg-action-btn" onclick="followUp(this,\'example\')">🌰 举个例子</button>' +
+                        '<button class="msg-action-btn" onclick="followUp(this,\'quizme\')">✍️ 考考我</button>';
+            }
+            actions.innerHTML = html;
             bubble.appendChild(actions);
+        }
+
+        // 一键追问：把回复片段按意图包装后直接发送
+        function followUp(btn, kind) {
+            const bubble = btn.closest('.bubble');
+            let snippet = getBubbleText(bubble);
+            if (!snippet) return;
+            if (snippet.length > 800) snippet = snippet.slice(0, 800) + '…';
+            const quoted = snippet.split('\n').map(l => '> ' + l).join('\n');
+            const tpl = {
+                deeper: '请把下面这段内容讲得更深入一些，补充原理和推导过程：\n',
+                simpler: '请用更通俗、更简单的语言重新讲一遍下面这段内容，像给零基础的同学讲：\n',
+                example: '请给下面这段内容举一个具体生动的例子或类比，帮我理解：\n',
+                quizme: '请基于下面这段内容出一道题考考我（先只出题，不要给答案，等我回答）：\n'
+            }[kind];
+            sendRawQuestion(tpl + quoted);
         }
 
         // 代码块右下角加一键复制按钮
@@ -3440,6 +3553,354 @@
 
         // ===== Initialization =====
 
+        // ============  AI 单次请求 / 模态框 / 思维导图 / 笔记 / 测验  ============
+        async function fetchAIReply(userPrompt, systemPrompt, maxTokens) {
+            const msgs = [];
+            if (systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
+            msgs.push({ role: 'user', content: userPrompt });
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 90000);
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+                    body: JSON.stringify({
+                        model: 'Qwen/Qwen3-VL-30B-A3B-Instruct',
+                        messages: msgs,
+                        stream: false,
+                        max_tokens: maxTokens || 1500,
+                        temperature: 0.7
+                    }),
+                    signal: controller.signal
+                });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const content = data.choices && data.choices[0] && data.choices[0].message ? data.choices[0].message.content : '';
+                if (!content) throw new Error('空回复');
+                return content;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        function collectContext(maxChars) {
+            const conv = getCurrentConversation();
+            if (!conv) return '';
+            const msgs = (conv.messages || []).filter(m => m.role !== 'system');
+            const lines = [];
+            msgs.forEach(m => {
+                let text = '';
+                if (Array.isArray(m.content)) {
+                    text = m.displayText !== undefined ? m.displayText : ((m.content.find(c => c.type === 'text') || {}).text || '');
+                } else {
+                    text = m.displayText !== undefined ? m.displayText : m.content;
+                }
+                if (!text) return;
+                lines.push((m.role === 'user' ? '用户：' : '助手：') + text);
+            });
+            let all = lines.join('\n\n');
+            if (all.length > maxChars) all = all.slice(-maxChars);
+            return all;
+        }
+
+        function showModal(title, bodyHtml) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = bodyHtml;
+            document.getElementById('modalOverlay').classList.add('open');
+        }
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('open');
+            document.getElementById('modalBody').innerHTML = '';
+        }
+        function modalLoading(text) {
+            return '<div class="modal-loading">' + text + '</div>';
+        }
+        function modalErrorHtml(msg, retryFn) {
+            return '<div class="modal-loading">生成失败：' + escapeHtml(msg) +
+                '<br><button class="quick-btn" style="margin-top:12px" onclick="' + retryFn + '()">重试</button></div>';
+        }
+        function downloadText(filename, text, mime) {
+            const blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        }
+        function sendRawQuestion(q) {
+            const ta = document.getElementById('userInput');
+            ta.value = q;
+            ta.dispatchEvent(new Event('input'));
+            sendMessage();
+        }
+
+        // ===== 思维导图 =====
+        async function openMindmap() {
+            const ctx = collectContext(6000);
+            if (!ctx) { showToast('还没有对话内容，先聊几句吧'); return; }
+            showModal('🗺 思维导图', modalLoading('正在梳理知识结构…'));
+            try {
+                const raw = await fetchAIReply(
+                    '请把下面这段学习对话里的知识点整理成层级大纲（思维导图结构）。要求：每行一个节点；用行首空格表示层级，每层缩进2个空格；最多4层；节点总数不超过24个；节点文字简洁（20字以内）；只输出大纲本身，不要任何解释或代码块。\n\n对话内容：\n' + ctx,
+                    null, 1200);
+                renderMindmap(raw);
+            } catch (e) {
+                showModal('🗺 思维导图', modalErrorHtml(e && e.name === 'AbortError' ? '请求超时' : '网络或服务异常', 'openMindmap'));
+            }
+        }
+        function parseMindmap(raw) {
+            const lines = raw.split('\n').map(l => l.replace(/\t/g, '  ')).filter(l => l.trim());
+            const root = { label: '知识地图', children: [] };
+            const stack = [{ depth: -1, node: root }];
+            lines.forEach(line => {
+                const m = line.match(/^(\s*)[-*•]?\s*(.*)$/);
+                if (!m) return;
+                const depth = Math.floor(m[1].length / 2);
+                const label = m[2].trim();
+                if (!label) return;
+                while (stack.length > 1 && stack[stack.length - 1].depth >= depth) stack.pop();
+                const node = { label: label, children: [] };
+                stack[stack.length - 1].node.children.push(node);
+                stack.push({ depth: depth, node: node });
+            });
+            return root;
+        }
+        function renderMindmap(raw) {
+            const root = parseMindmap(raw);
+            if (!root.children.length) {
+                showModal('🗺 思维导图', modalErrorHtml('未能解析出结构', 'openMindmap'));
+                return;
+            }
+            const build = (node) => {
+                let html = '<li class="mm-node"><div class="mm-row">';
+                if (node.children.length) html += '<button class="mm-caret" data-mm-toggle>▼</button>';
+                else html += '<span class="mm-caret">·</span>';
+                html += '<span class="mm-label">' + escapeHtml(node.label) + '</span>';
+                html += '<button class="mm-ask" data-mm-ask="' + escapeHtml(node.label) + '">追问</button>';
+                html += '</div>';
+                if (node.children.length) html += '<ul>' + node.children.map(build).join('') + '</ul>';
+                html += '</li>';
+                return html;
+            };
+            const body = '<div class="modal-toolbar"><button class="quick-btn" onclick="openMindmap()">🔄 重新生成</button>' +
+                '<span style="font-size:0.75rem;color:var(--text-secondary)">点击 ▼ 展开/折叠节点，悬停节点可「追问」</span></div>' +
+                '<div class="mm-tree"><ul>' + root.children.map(build).join('') + '</ul></div>';
+            showModal('🗺 思维导图', body);
+        }
+
+        // ===== 一键学习笔记 =====
+        async function openNotes() {
+            const ctx = collectContext(8000);
+            if (!ctx) { showToast('还没有对话内容，先聊几句吧'); return; }
+            showModal('📝 学习笔记', modalLoading('正在整理笔记…'));
+            try {
+                const raw = await fetchAIReply(
+                    '请把下面这段学习对话整理成一份结构化学习笔记，用 Markdown 格式。要求：包含 # 标题；分 ## 核心概念、## 要点梳理、## 公式与结论（公式用 Unicode 字符表示，禁止 LaTeX）、## 典型例子、## 复习提问 几个部分；内容简洁完整、忠于对话、便于考前复习。\n\n对话内容：\n' + ctx,
+                    null, 2000);
+                window._lastNotes = raw;
+                const body = '<div class="modal-toolbar"><button class="quick-btn" data-notes-copy>📋 复制</button>' +
+                    '<button class="quick-btn" data-notes-export>⬇️ 导出 .md</button>' +
+                    '<button class="quick-btn" onclick="openNotes()">🔄 重新生成</button></div>' +
+                    '<div class="bubble" style="background:var(--sidebar-bg)">' + formatMessage(raw) + '</div>';
+                showModal('📝 学习笔记', body);
+                enhanceCodeBlocks(document.getElementById('modalBody'));
+            } catch (e) {
+                showModal('📝 学习笔记', modalErrorHtml(e && e.name === 'AbortError' ? '请求超时' : '网络或服务异常', 'openNotes'));
+            }
+        }
+
+        // ===== 自测出题 + 错题本 =====
+        const WRONG_KEY = 'learning_assistant_wrongbook';
+        function loadWrong() {
+            try { return JSON.parse(localStorage.getItem(WRONG_KEY) || '[]'); } catch (e) { return []; }
+        }
+        function saveWrong(list) {
+            try { localStorage.setItem(WRONG_KEY, JSON.stringify(list)); } catch (e) {}
+        }
+        async function openQuiz() {
+            const ctx = collectContext(6000);
+            if (!ctx) { showToast('还没有对话内容，先聊几句吧'); return; }
+            showModal('✍️ 自测出题', quizTabsHtml('quiz') + modalLoading('正在根据对话出题…'));
+            try {
+                const raw = await fetchAIReply(
+                    '根据下面这段学习对话出 4 道单选题，检验我是否真的掌握。严格只按以下格式逐题输出，不要输出任何其他内容：\n题1. 题干\nA. 选项内容\nB. 选项内容\nC. 选项内容\nD. 选项内容\n答案: B\n解析: 解析内容\n\n对话内容：\n' + ctx,
+                    null, 2000);
+                const qs = parseQuiz(raw);
+                if (!qs.length) {
+                    showModal('✍️ 自测出题', quizTabsHtml('quiz') + modalErrorHtml('题目格式解析失败', 'openQuiz'));
+                    return;
+                }
+                window._quizData = qs;
+                renderQuiz(qs);
+            } catch (e) {
+                showModal('✍️ 自测出题', quizTabsHtml('quiz') + modalErrorHtml(e && e.name === 'AbortError' ? '请求超时' : '网络或服务异常', 'openQuiz'));
+            }
+        }
+        function parseQuiz(raw) {
+            const qs = [];
+            const re = /题\s*(\d+)\s*[.、,，:：]?\s*([\s\S]*?)(?=题\s*\d+\s*[.、,，:：]|$)/g;
+            let m;
+            while ((m = re.exec(raw)) !== null) {
+                const block = m[2];
+                const opts = [];
+                const optRe = /^([A-D])\s*[.、,，:：]\s*(.+)$/gm;
+                let om;
+                while ((om = optRe.exec(block)) !== null) opts.push({ key: om[1], text: om[2].trim() });
+                if (opts.length < 2) continue;
+                const firstOptIdx = block.search(/^[A-D]\s*[.、,，:：]/m);
+                let title = (firstOptIdx >= 0 ? block.slice(0, firstOptIdx) : block).trim();
+                title = title.replace(/^(单选|单选题|多选)\s*[)）]?\s*/, '').trim();
+                const ansM = block.match(/答案\s*[:：]\s*([A-D])/);
+                const expM = block.match(/解析\s*[:：]\s*([\s\S]*)$/);
+                qs.push({ title: title, opts: opts, answer: ansM ? ansM[1] : '', explain: expM ? expM[1].trim() : '' });
+            }
+            return qs;
+        }
+        function quizTabsHtml(active) {
+            const n = loadWrong().length;
+            return '<div class="quiz-tabs">' +
+                '<button class="quiz-tab ' + (active === 'quiz' ? 'active' : '') + '" onclick="showQuizTab()">本次测验</button>' +
+                '<button class="quiz-tab ' + (active === 'wrong' ? 'active' : '') + '" onclick="showWrongTab()">错题本 (<span data-wrong-count>' + n + '</span>)</button>' +
+                '</div>';
+        }
+        function renderQuiz(qs) {
+            let html = quizTabsHtml('quiz');
+            html += '<div class="quiz-score">共 ' + qs.length + ' 题，作答后点击提交</div>';
+            qs.forEach((q, i) => {
+                html += '<div class="quiz-q"><div class="quiz-q-title">' + (i + 1) + '. ' + escapeHtml(q.title) + '</div>';
+                q.opts.forEach(o => {
+                    html += '<label class="quiz-opt"><input type="radio" name="quiz_q_' + i + '" value="' + o.key + '"><span>' + o.key + '. ' + escapeHtml(o.text) + '</span></label>';
+                });
+                html += '<div class="quiz-explain"></div></div>';
+            });
+            html += '<div style="text-align:center"><button class="quick-btn" data-quiz-submit style="padding:8px 24px;font-size:0.9rem">✅ 提交答案</button></div>';
+            showModal('✍️ 自测出题', html);
+        }
+        function showQuizTab() {
+            if (window._quizData && window._quizData.length) renderQuiz(window._quizData);
+            else openQuiz();
+        }
+        function showWrongTab() {
+            const list = loadWrong();
+            let html = quizTabsHtml('wrong');
+            if (!list.length) {
+                html += '<div class="modal-loading">错题本还是空的<br>测验做错的题会自动收进来</div>';
+            } else {
+                html += '<div class="modal-toolbar" style="justify-content:flex-end"><button class="quick-btn" data-wrong-clear>🗑 清空错题本</button></div>';
+                list.slice().reverse().forEach(w => {
+                    html += '<div class="wrong-item"><div class="wrong-q">' + escapeHtml(w.title) + '</div>' +
+                        '<div class="wrong-meta">你的答案：' + escapeHtml(w.userAnswer) + '　正确答案：' + escapeHtml(w.answer) +
+                        (w.convTitle ? '　来自：' + escapeHtml(w.convTitle) : '') + '　' + new Date(w.addedAt).toLocaleDateString('zh-CN') + '</div>' +
+                        '<div class="wrong-actions"><button class="quick-btn" data-wrong-reask="' + w.id + '">💡 再讲一遍</button>' +
+                        '<button class="quick-btn" data-wrong-del="' + w.id + '">删除</button></div></div>';
+                });
+            }
+            showModal('✍️ 自测出题', html);
+        }
+        function gradeQuiz() {
+            const qs = window._quizData || [];
+            const body = document.getElementById('modalBody');
+            let correct = 0;
+            const wrongList = loadWrong();
+            const conv = getCurrentConversation();
+            body.querySelectorAll('.quiz-q').forEach((qEl, i) => {
+                const q = qs[i];
+                if (!q) return;
+                const checked = qEl.querySelector('input:checked');
+                const userAns = checked ? checked.value : '';
+                const isRight = userAns === q.answer;
+                if (isRight) correct++;
+                qEl.classList.add('graded');
+                qEl.querySelectorAll('.quiz-opt').forEach(opt => {
+                    const input = opt.querySelector('input');
+                    input.disabled = true;
+                    if (input.value === q.answer) opt.classList.add('correct');
+                    else if (input.checked) opt.classList.add('wrong');
+                });
+                const exp = qEl.querySelector('.quiz-explain');
+                exp.textContent = '正确答案：' + q.answer + '　你的答案：' + (userAns || '未作答') + (isRight ? '　✅' : '　❌') + '\n' + q.explain;
+                if (!isRight) {
+                    wrongList.push({
+                        id: Date.now() + '_' + i,
+                        title: q.title,
+                        opts: q.opts,
+                        answer: q.answer,
+                        explain: q.explain,
+                        userAnswer: userAns || '未作答',
+                        convTitle: conv ? (conv.title || '') : '',
+                        addedAt: Date.now()
+                    });
+                }
+            });
+            saveWrong(wrongList);
+            const scoreEl = body.querySelector('.quiz-score');
+            if (scoreEl) scoreEl.textContent = '得分：' + correct + ' / ' + qs.length + (correct === qs.length ? '　全对，太棒了！' : '　错题已加入错题本');
+            const submitBtn = body.querySelector('[data-quiz-submit]');
+            if (submitBtn) submitBtn.outerHTML = '<button class="quick-btn" style="padding:8px 24px;font-size:0.9rem" onclick="openQuiz()">🔄 再出一套</button>';
+            const wc = body.querySelector('[data-wrong-count]');
+            if (wc) wc.textContent = loadWrong().length;
+        }
+
+        // 模态框内事件委托
+        function setupModalActions() {
+            document.getElementById('modalBody').addEventListener('click', (e) => {
+                const t = e.target;
+                const mmToggle = t.closest('[data-mm-toggle]');
+                if (mmToggle) {
+                    const li = mmToggle.closest('.mm-node');
+                    li.classList.toggle('collapsed');
+                    mmToggle.textContent = li.classList.contains('collapsed') ? '▶' : '▼';
+                    return;
+                }
+                const mmAsk = t.closest('[data-mm-ask]');
+                if (mmAsk) {
+                    const q = '请详细讲解这个知识点：' + mmAsk.getAttribute('data-mm-ask');
+                    closeModal();
+                    sendRawQuestion(q);
+                    return;
+                }
+                if (t.closest('[data-notes-copy]')) {
+                    if (window._lastNotes) copyToClipboard(window._lastNotes, '笔记已复制');
+                    return;
+                }
+                if (t.closest('[data-notes-export]')) {
+                    if (window._lastNotes) {
+                        const d = new Date();
+                        const pad = n => String(n).padStart(2, '0');
+                        downloadText('学习笔记-' + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.md',
+                            window._lastNotes, 'text/markdown;charset=utf-8');
+                        showToast('笔记已导出');
+                    }
+                    return;
+                }
+                if (t.closest('[data-quiz-submit]')) { gradeQuiz(); return; }
+                const wrongDel = t.closest('[data-wrong-del]');
+                if (wrongDel) {
+                    const id = wrongDel.getAttribute('data-wrong-del');
+                    saveWrong(loadWrong().filter(w => String(w.id) !== id));
+                    showWrongTab();
+                    return;
+                }
+                if (t.closest('[data-wrong-clear]')) {
+                    if (!confirm('确定清空错题本吗？')) return;
+                    saveWrong([]);
+                    showWrongTab();
+                    return;
+                }
+                const reask = t.closest('[data-wrong-reask]');
+                if (reask) {
+                    const id = reask.getAttribute('data-wrong-reask');
+                    const item = loadWrong().find(w => String(w.id) === id);
+                    if (!item) return;
+                    closeModal();
+                    sendRawQuestion('请重新讲解这道题，并说明为什么答案是 ' + item.answer + '：\n' + item.title + '\n' + item.opts.map(o => o.key + '. ' + o.text).join('\n'));
+                    return;
+                }
+            });
+        }
+
         // ============ 个性化主题 ============
         function applyTheme(name) {
             if (name === 'default') {
@@ -3493,6 +3954,7 @@
             updateFeynmanUI();
             setupInputDrop();
             setupQuoteFloat();
+            setupModalActions();
             initTheme();
         }
 
