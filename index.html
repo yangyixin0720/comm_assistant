@@ -572,6 +572,14 @@
             text-align: center;
         }
         .app-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .stream-note {
+            margin-top: 10px;
+            padding: 6px 10px;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
         .empty-state {
             display: flex;
             flex-direction: column;
@@ -2197,6 +2205,11 @@
 
                         const searchController = new AbortController();
                         const searchTimeoutId = setTimeout(() => searchController.abort(), 90000);
+                        let streamIdleTimer = null;
+                        const kickStreamIdle = () => {
+                            clearTimeout(streamIdleTimer);
+                            streamIdleTimer = setTimeout(() => searchController.abort(), 90000);
+                        };
 
                         const response = await fetch(API_URL, {
                             method: 'POST',
@@ -2226,44 +2239,57 @@
                         // 流式读取搜索结果回复
                         const bubble = createStreamingBubble();
                         let fullReply = '';
+                        let streamAborted = false;
                         const reader = response.body.getReader();
                         const decoder = new TextDecoder();
                         let buffer = '';
                         let lastRender = 0;
 
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
+                        try {
+                            while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                kickStreamIdle();
 
-                            buffer += decoder.decode(value, { stream: true });
-                            const lines = buffer.split('\n');
-                            buffer = lines.pop();
+                                buffer += decoder.decode(value, { stream: true });
+                                const lines = buffer.split('\n');
+                                buffer = lines.pop();
 
-                            for (const line of lines) {
-                                const trimmed = line.trim();
-                                if (!trimmed || !trimmed.startsWith('data: ')) continue;
-                                const data = trimmed.slice(6);
-                                if (data === '[DONE]') continue;
+                                for (const line of lines) {
+                                    const trimmed = line.trim();
+                                    if (!trimmed || !trimmed.startsWith('data: ')) continue;
+                                    const data = trimmed.slice(6);
+                                    if (data === '[DONE]') continue;
 
-                                try {
-                                    const json = JSON.parse(data);
-                                    const delta = json.choices?.[0]?.delta?.content;
-                                    if (delta) {
-                                        fullReply += delta;
-                                        const now = Date.now();
-                                        if (now - lastRender > 100) {
-                                            bubble.innerHTML = formatMessage(fullReply) + '<span class="streaming-cursor">▊</span>';
-                                            const container = document.getElementById('chatContainer');
-                                            container.scrollTop = container.scrollHeight;
-                                            lastRender = now;
+                                    try {
+                                        const json = JSON.parse(data);
+                                        const delta = json.choices?.[0]?.delta?.content;
+                                        if (delta) {
+                                            fullReply += delta;
+                                            const now = Date.now();
+                                            if (now - lastRender > 100) {
+                                                bubble.innerHTML = formatMessage(fullReply) + '<span class="streaming-cursor">▊</span>';
+                                                const container = document.getElementById('chatContainer');
+                                                container.scrollTop = container.scrollHeight;
+                                                lastRender = now;
+                                            }
                                         }
-                                    }
-                                } catch (e) { /* 忽略解析错误 */ }
+                                    } catch (e) { /* 忽略解析错误 */ }
+                                }
                             }
+                        } catch (streamErr) {
+                            // 超时但已有部分内容：保留已生成部分
+                            if (streamErr && streamErr.name === 'AbortError' && fullReply) {
+                                streamAborted = true;
+                            } else {
+                                throw streamErr;
+                            }
+                        } finally {
+                            clearTimeout(streamIdleTimer);
                         }
 
                         // 最终渲染
-                        bubble.innerHTML = formatMessage(fullReply);
+                        bubble.innerHTML = formatMessage(fullReply) + (streamAborted ? '<div class="stream-note">⏱️ 回复较长，已在此处中断。发送「继续」可以让我接着讲。</div>' : '');
                         // 添加搜索来源
                         let sourcesHtml = '<div class="search-sources"><details><summary>📋 信息来源（' + searchResults.length + ' 条）</summary>';
                         searchResults.forEach(r => {
@@ -2298,7 +2324,11 @@
 
             } catch (error) {
                 removeTyping(typingId);
-                addMessage('ai', `出错了：${error.message}。请检查网络连接或 API Key。`);
+                if (error && error.name === 'AbortError') {
+                    addMessage('ai', '⏱️ 请求超时了（网络较慢或服务器繁忙），请再发送一次试试。');
+                } else {
+                    addMessage('ai', `出错了：${error.message}。请检查网络连接或 API Key。`);
+                }
             } finally {
                 // 无论如何都要重置状态，防止按钮卡死
                 conv.isLoading = false;
@@ -2325,10 +2355,18 @@
             return div.querySelector('.bubble');
         }
 
-        // 流式AI调用函数（逐字输出，带超时保护）
+        // 流式AI调用函数（逐字输出，带空闲超时保护）
         async function callAI(conv, content, typingId, searchResults) {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 90000); // 90秒超时（流式需要更长）
+            // 空闲超时：90秒内没有任何新内容才中断；只要持续输出就不会被截断
+            const IDLE_LIMIT = 90000;
+            let idleTimer = setTimeout(() => controller.abort(), IDLE_LIMIT);
+            const kickIdle = () => {
+                clearTimeout(idleTimer);
+                idleTimer = setTimeout(() => controller.abort(), IDLE_LIMIT);
+            };
+            let bubble = null;
+            let fullReply = '';
 
             try {
                 const response = await fetch(API_URL, {
@@ -2355,8 +2393,7 @@
                 }
 
                 // 流式读取响应
-                const bubble = createStreamingBubble();
-                let fullReply = '';
+                bubble = createStreamingBubble();
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -2365,6 +2402,7 @@
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
+                    kickIdle();
 
                     buffer += decoder.decode(value, { stream: true });
                     const lines = buffer.split('\n');
@@ -2412,8 +2450,20 @@
                 conv.messages.push({ role: 'assistant', content: fullReply });
                 conv.updatedAt = Date.now();
                 saveConversations();
+            } catch (err) {
+                // 超时但已有部分内容：保留已生成的回复，而不是整条报错
+                if (err && err.name === 'AbortError' && fullReply) {
+                    if (bubble) {
+                        bubble.innerHTML = formatMessage(fullReply) + '<div class="stream-note">⏱️ 回复较长，已在此处中断。发送「继续」可以让我接着讲。</div>';
+                    }
+                    conv.messages.push({ role: 'assistant', content: fullReply });
+                    conv.updatedAt = Date.now();
+                    saveConversations();
+                    return;
+                }
+                throw err;
             } finally {
-                clearTimeout(timeoutId);
+                clearTimeout(idleTimer);
             }
         }
 
