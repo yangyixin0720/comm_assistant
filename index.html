@@ -478,6 +478,55 @@
         .empty-state-text {
             font-size: 1rem;
         }
+        .search-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: #eef2ff;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--primary);
+            margin-bottom: 12px;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .search-status .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .search-sources {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .search-sources summary {
+            cursor: pointer;
+            color: var(--primary);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .search-source-item {
+            padding: 4px 0;
+            line-height: 1.5;
+        }
+        .search-source-item .source-tag {
+            display: inline-block;
+            background: #f3f4f6;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-right: 4px;
+        }
         /* Mobile toggle */
         .sidebar-toggle {
             display: none;
@@ -600,10 +649,6 @@
 
         let webSearchEnabled = false;
 
-        function openWebSearch(query) {
-            window.open(`https://www.baidu.com/s?wd=${encodeURIComponent(query)}`, '_blank');
-        }
-
         function toggleWebSearch() {
             webSearchEnabled = !webSearchEnabled;
             const btn = document.getElementById('searchToggle');
@@ -614,6 +659,133 @@
                 btn.classList.remove('active');
                 btn.textContent = '🌐 联网搜索';
             }
+        }
+
+        // 通过多个CORS代理获取搜索结果
+        async function fetchWithProxy(url) {
+            const proxies = [
+                u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+                u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+            ];
+            for (const proxy of proxies) {
+                try {
+                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(8000) });
+                    if (resp.ok) return await resp.text();
+                } catch (e) { continue; }
+            }
+            return null;
+        }
+
+        // 解析百度搜索结果
+        function parseBaiduResults(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const results = [];
+            const containers = doc.querySelectorAll('.c-container, .result, [class*="result"]');
+            containers.forEach(container => {
+                const titleEl = container.querySelector('h3, .t, [class*="title"]');
+                const snippetEl = container.querySelector('.c-abstract, [class*="abstract"], [class*="content"], .c-span-last');
+                if (titleEl) {
+                    const title = titleEl.textContent.trim();
+                    const snippet = snippetEl ? snippetEl.textContent.trim() : '';
+                    if (title && title.length > 2) {
+                        results.push({ title, snippet });
+                    }
+                }
+            });
+            return results.slice(0, 8);
+        }
+
+        // 解析DuckDuckGo HTML搜索结果
+        function parseDuckDuckGoResults(html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const results = [];
+            const items = doc.querySelectorAll('.result, .web-result, article');
+            items.forEach(item => {
+                const titleEl = item.querySelector('.result__title, .result__a, h2, h3');
+                const snippetEl = item.querySelector('.result__snippet, .result__body');
+                if (titleEl) {
+                    const title = titleEl.textContent.trim();
+                    const snippet = snippetEl ? snippetEl.textContent.trim() : '';
+                    if (title && title.length > 2) {
+                        results.push({ title, snippet });
+                    }
+                }
+            });
+            return results.slice(0, 8);
+        }
+
+        // 主搜索函数：多源搜索并整合结果
+        async function performWebSearch(query) {
+            let allResults = [];
+
+            // 1. 尝试百度搜索
+            try {
+                const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`;
+                const baiduHtml = await fetchWithProxy(baiduUrl);
+                if (baiduHtml) {
+                    const baiduResults = parseBaiduResults(baiduHtml);
+                    allResults = allResults.concat(baiduResults.map(r => ({ ...r, source: '百度' })));
+                }
+            } catch (e) { console.log('百度搜索失败:', e); }
+
+            // 2. 尝试DuckDuckGo搜索
+            try {
+                const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+                const ddgHtml = await fetchWithProxy(ddgUrl);
+                if (ddgHtml) {
+                    const ddgResults = parseDuckDuckGoResults(ddgHtml);
+                    allResults = allResults.concat(ddgResults.map(r => ({ ...r, source: 'DuckDuckGo' })));
+                }
+            } catch (e) { console.log('DuckDuckGo搜索失败:', e); }
+
+            // 3. 尝试Bing搜索
+            try {
+                const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+                const bingHtml = await fetchWithProxy(bingUrl);
+                if (bingHtml) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(bingHtml, 'text/html');
+                    const items = doc.querySelectorAll('#b_results .b_algo, li.b_algo');
+                    items.forEach(item => {
+                        const titleEl = item.querySelector('h2, a');
+                        const snippetEl = item.querySelector('.b_caption p, .b_lineclamp2');
+                        if (titleEl) {
+                            const title = titleEl.textContent.trim();
+                            const snippet = snippetEl ? snippetEl.textContent.trim() : '';
+                            if (title && title.length > 2) {
+                                allResults.push({ title, snippet, source: 'Bing' });
+                            }
+                        }
+                    });
+                }
+            } catch (e) { console.log('Bing搜索失败:', e); }
+
+            // 去重（按标题）
+            const seen = new Set();
+            const unique = [];
+            for (const r of allResults) {
+                const key = r.title.substring(0, 20);
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    unique.push(r);
+                }
+            }
+
+            return unique.slice(0, 10);
+        }
+
+        // 将搜索结果格式化为AI上下文本
+        function formatSearchResultsForAI(results, query) {
+            if (results.length === 0) return '';
+            let text = `以下是关于"${query}"的联网搜索结果，请基于这些信息回答用户的问题，并在回答末尾标注信息来源：\n\n`;
+            results.forEach((r, i) => {
+                text += `【${i + 1}】${r.title}`;
+                if (r.snippet) text += `\n${r.snippet}`;
+                text += ` (来源: ${r.source})\n\n`;
+            });
+            return text;
         }
 
         let conversations = {};
@@ -819,20 +991,6 @@
             return div.innerHTML;
         }
 
-        // ===== Web Search Toggle =====
-
-        function toggleWebSearch() {
-            webSearchEnabled = !webSearchEnabled;
-            const btn = document.getElementById('searchToggle');
-            if (webSearchEnabled) {
-                btn.classList.add('active');
-                btn.textContent = '🌐 联网已开启';
-            } else {
-                btn.classList.remove('active');
-                btn.textContent = '🌐 联网搜索';
-            }
-        }
-
         // ===== Sidebar Toggle =====
 
         function toggleSidebar() {
@@ -965,48 +1123,79 @@
             saveConversations();
 
             const typingId = showTyping();
+            let searchResults = [];
 
             try {
-                // If web search is enabled, open Baidu search in new tab
+                // 如果联网搜索已开启，先搜索再回答
                 if (webSearchEnabled && text) {
-                    openWebSearch(text);
+                    const searchStatusId = showSearchStatus('正在联网搜索：' + text);
+                    
+                    searchResults = await performWebSearch(text);
+                    removeSearchStatus(searchStatusId);
+                    
+                    if (searchResults.length > 0) {
+                        const searchContext = formatSearchResultsForAI(searchResults, text);
+                        const statusId2 = showSearchStatus(`已找到 ${searchResults.length} 条相关信息，正在整合分析...`);
+                        
+                        // 记录当前消息数量，方便之后清理临时上下文
+                        const msgCountBeforeSearch = conv.messages.length;
+                        
+                        // 临时注入搜索上下文（仅用于本次API调用）
+                        conv.messages.push({ role: 'user', content: '[联网搜索结果]\n' + searchContext });
+                        conv.messages.push({ role: 'assistant', content: '好的，我已获取到搜索结果，正在整理答案...' });
+                        // 再次加入用户原始消息，让AI基于上下文回答
+                        conv.messages.push({ role: 'user', content: content });
+
+                        const response = await fetch(API_URL, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${API_KEY}`
+                            },
+                            body: JSON.stringify({
+                                model: 'Qwen/Qwen3-VL-32B-Instruct',
+                                messages: conv.messages,
+                                temperature: 0.7,
+                                max_tokens: 2000
+                            })
+                        });
+
+                        removeSearchStatus(statusId2);
+                        removeTyping(typingId);
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({}));
+                            throw new Error(errorData.message || `API 错误：${response.status}`);
+                        }
+
+                        const data = await response.json();
+                        const reply = data.choices[0].message.content;
+
+                        // 清理临时搜索上下文：截断到搜索前的消息数
+                        conv.messages.length = msgCountBeforeSearch;
+                        // 添加正式的AI回复
+                        conv.messages.push({ role: 'assistant', content: reply });
+                        conv.updatedAt = Date.now();
+                        saveConversations();
+                        
+                        addMessage('ai', reply, [], true, searchResults);
+                    } else {
+                        // 搜索无结果，正常回答
+                        const statusId2 = showSearchStatus('未找到相关搜索结果，将基于自身知识回答');
+                        await new Promise(r => setTimeout(r, 1200));
+                        removeSearchStatus(statusId2);
+                        await callAI(conv, content, typingId, []);
+                    }
+                } else {
+                    // 未开启联网搜索，正常调用AI
+                    await callAI(conv, content, typingId, []);
                 }
-
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: 'Qwen/Qwen3-VL-32B-Instruct',
-                        messages: conv.messages,
-                        temperature: 0.7,
-                        max_tokens: 2000
-                    })
-                });
-
-                removeTyping(typingId);
-
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData.message || `API 错误：${response.status}`);
-                }
-
-                const data = await response.json();
-                const reply = data.choices[0].message.content;
-
-                conv.messages.push({ role: 'assistant', content: reply });
-                conv.updatedAt = Date.now();
-                saveConversations();
-                addMessage('ai', reply);
 
             } catch (error) {
                 removeTyping(typingId);
                 addMessage('ai', `出错了：${error.message}。请检查网络连接或 API Key。`);
             } finally {
                 conv.isLoading = false;
-                // Only re-enable button if this is still the active conversation
                 if (currentConvId === conv.id) {
                     document.getElementById('sendBtn').disabled = false;
                     input.focus();
@@ -1014,7 +1203,39 @@
             }
         }
 
-        function addMessage(role, text, images, save = true) {
+        // 通用AI调用函数
+        async function callAI(conv, content, typingId, searchResults) {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: 'Qwen/Qwen3-VL-32B-Instruct',
+                    messages: conv.messages,
+                    temperature: 0.7,
+                    max_tokens: 2000
+                })
+            });
+
+            removeTyping(typingId);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `API 错误：${response.status}`);
+            }
+
+            const data = await response.json();
+            const reply = data.choices[0].message.content;
+
+            conv.messages.push({ role: 'assistant', content: reply });
+            conv.updatedAt = Date.now();
+            saveConversations();
+            addMessage('ai', reply, [], true, searchResults);
+        }
+
+        function addMessage(role, text, images, save = true, searchSources = []) {
             const container = document.getElementById('chatContainer');
             
             // Remove empty state if present
@@ -1039,6 +1260,15 @@
             }
             if (text) {
                 html += formatMessage(text);
+            }
+            // 添加搜索来源
+            if (searchSources && searchSources.length > 0) {
+                html += '<div class="search-sources">';
+                html += '<details><summary>📋 信息来源（' + searchSources.length + ' 条）</summary>';
+                searchSources.forEach(r => {
+                    html += `<div class="search-source-item"><span class="source-tag">${escapeHtml(r.source)}</span>${escapeHtml(r.title)}</div>`;
+                });
+                html += '</details></div>';
             }
             bubble.innerHTML = html;
 
@@ -1089,6 +1319,29 @@
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
             return div.id;
+        }
+
+        function showSearchStatus(text) {
+            const container = document.getElementById('chatContainer');
+            const div = document.createElement('div');
+            div.className = 'search-status';
+            div.id = 'search-status-' + Date.now();
+            div.innerHTML = `<div class="spinner"></div><span>${escapeHtml(text)}</span>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div.id;
+        }
+
+        function removeSearchStatus(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function updateSearchStatus(id, text) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.querySelector('span').textContent = text;
+            }
         }
 
         function removeTyping(id) {
