@@ -654,26 +654,72 @@
             const btn = document.getElementById('searchToggle');
             if (webSearchEnabled) {
                 btn.classList.add('active');
-                btn.textContent = '🌐 联网已开启';
+                btn.textContent = ' 联网已开启';
             } else {
                 btn.classList.remove('active');
-                btn.textContent = '🌐 联网搜索';
+                btn.textContent = ' 联网搜索';
             }
         }
 
-        // 通过多个CORS代理获取搜索结果
+        // 通过CORS代理获取内容
         async function fetchWithProxy(url) {
             const proxies = [
                 u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-                u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+                u => `https://corsproxy.org/?${encodeURIComponent(u)}`,
+                u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
             ];
             for (const proxy of proxies) {
                 try {
-                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(8000) });
+                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(6000) });
                     if (resp.ok) return await resp.text();
                 } catch (e) { continue; }
             }
             return null;
+        }
+
+        // 直接调用DuckDuckGo即时答案API（原生支持CORS）
+        async function fetchDuckDuckGoInstant(query) {
+            try {
+                const resp = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`, {
+                    signal: AbortSignal.timeout(6000)
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const results = [];
+                    if (data.AbstractText) {
+                        results.push({ title: data.Heading || query, snippet: data.AbstractText, source: 'DuckDuckGo' });
+                    }
+                    if (data.RelatedTopics) {
+                        data.RelatedTopics.slice(0, 5).forEach(topic => {
+                            if (topic.Text && topic.FirstURL) {
+                                results.push({ title: topic.Text.substring(0, 80), snippet: topic.Text, source: 'DuckDuckGo' });
+                            }
+                        });
+                    }
+                    return results;
+                }
+            } catch (e) { console.log('DuckDuckGo API失败:', e); }
+            return [];
+        }
+
+        // 直接调用维基百科API（原生支持CORS）
+        async function fetchWikipedia(query) {
+            try {
+                const resp = await fetch(`https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&format=json&origin=*`, {
+                    signal: AbortSignal.timeout(6000)
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.query && data.query.search) {
+                        return data.query.search.map(item => ({
+                            title: item.title,
+                            snippet: item.snippet.replace(/<[^>]+>/g, ''),
+                            source: '维基百科'
+                        }));
+                    }
+                }
+            } catch (e) { console.log('维基百科API失败:', e); }
+            return [];
         }
 
         // 解析百度搜索结果
@@ -689,80 +735,62 @@
                     const title = titleEl.textContent.trim();
                     const snippet = snippetEl ? snippetEl.textContent.trim() : '';
                     if (title && title.length > 2) {
-                        results.push({ title, snippet });
+                        results.push({ title, snippet, source: '百度' });
                     }
                 }
             });
-            return results.slice(0, 8);
-        }
-
-        // 解析DuckDuckGo HTML搜索结果
-        function parseDuckDuckGoResults(html) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const results = [];
-            const items = doc.querySelectorAll('.result, .web-result, article');
-            items.forEach(item => {
-                const titleEl = item.querySelector('.result__title, .result__a, h2, h3');
-                const snippetEl = item.querySelector('.result__snippet, .result__body');
-                if (titleEl) {
-                    const title = titleEl.textContent.trim();
-                    const snippet = snippetEl ? snippetEl.textContent.trim() : '';
-                    if (title && title.length > 2) {
-                        results.push({ title, snippet });
-                    }
-                }
-            });
-            return results.slice(0, 8);
+            return results.slice(0, 5);
         }
 
         // 主搜索函数：多源搜索并整合结果
         async function performWebSearch(query) {
             let allResults = [];
 
-            // 1. 尝试百度搜索
-            try {
-                const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`;
-                const baiduHtml = await fetchWithProxy(baiduUrl);
-                if (baiduHtml) {
-                    const baiduResults = parseBaiduResults(baiduHtml);
-                    allResults = allResults.concat(baiduResults.map(r => ({ ...r, source: '百度' })));
-                }
-            } catch (e) { console.log('百度搜索失败:', e); }
+            // 1. 尝试DuckDuckGo即时答案API（直接调用，无需代理）
+            const ddgResults = await fetchDuckDuckGoInstant(query);
+            allResults = allResults.concat(ddgResults);
 
-            // 2. 尝试DuckDuckGo搜索
-            try {
-                const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-                const ddgHtml = await fetchWithProxy(ddgUrl);
-                if (ddgHtml) {
-                    const ddgResults = parseDuckDuckGoResults(ddgHtml);
-                    allResults = allResults.concat(ddgResults.map(r => ({ ...r, source: 'DuckDuckGo' })));
-                }
-            } catch (e) { console.log('DuckDuckGo搜索失败:', e); }
+            // 2. 尝试维基百科API（直接调用，无需代理）
+            const wikiResults = await fetchWikipedia(query);
+            allResults = allResults.concat(wikiResults);
 
-            // 3. 尝试Bing搜索
-            try {
-                const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
-                const bingHtml = await fetchWithProxy(bingUrl);
-                if (bingHtml) {
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(bingHtml, 'text/html');
-                    const items = doc.querySelectorAll('#b_results .b_algo, li.b_algo');
-                    items.forEach(item => {
-                        const titleEl = item.querySelector('h2, a');
-                        const snippetEl = item.querySelector('.b_caption p, .b_lineclamp2');
-                        if (titleEl) {
-                            const title = titleEl.textContent.trim();
-                            const snippet = snippetEl ? snippetEl.textContent.trim() : '';
-                            if (title && title.length > 2) {
-                                allResults.push({ title, snippet, source: 'Bing' });
+            // 3. 尝试通过CORS代理获取百度搜索
+            if (allResults.length === 0) {
+                try {
+                    const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`;
+                    const baiduHtml = await fetchWithProxy(baiduUrl);
+                    if (baiduHtml) {
+                        const baiduResults = parseBaiduResults(baiduHtml);
+                        allResults = allResults.concat(baiduResults);
+                    }
+                } catch (e) { console.log('百度搜索失败:', e); }
+            }
+
+            // 4. 尝试通过CORS代理获取DuckDuckGo HTML搜索
+            if (allResults.length < 3) {
+                try {
+                    const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+                    const ddgHtml = await fetchWithProxy(ddgHtmlUrl);
+                    if (ddgHtml) {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(ddgHtml, 'text/html');
+                        const items = doc.querySelectorAll('.result, .web-result, article');
+                        items.forEach(item => {
+                            const titleEl = item.querySelector('.result__title, .result__a, h2, h3');
+                            const snippetEl = item.querySelector('.result__snippet, .result__body');
+                            if (titleEl) {
+                                const title = titleEl.textContent.trim();
+                                const snippet = snippetEl ? snippetEl.textContent.trim() : '';
+                                if (title && title.length > 2) {
+                                    allResults.push({ title, snippet, source: 'DuckDuckGo' });
+                                }
                             }
-                        }
-                    });
-                }
-            } catch (e) { console.log('Bing搜索失败:', e); }
+                        });
+                    }
+                } catch (e) { console.log('DuckDuckGo HTML搜索失败:', e); }
+            }
 
-            // 去重（按标题）
+            // 去重（按标题前20字符）
             const seen = new Set();
             const unique = [];
             for (const r of allResults) {
@@ -1180,10 +1208,13 @@
                         
                         addMessage('ai', reply, [], true, searchResults);
                     } else {
-                        // 搜索无结果，正常回答
-                        const statusId2 = showSearchStatus('未找到相关搜索结果，将基于自身知识回答');
-                        await new Promise(r => setTimeout(r, 1200));
+                        // 搜索无结果，明确告知用户
+                        const statusId2 = showSearchStatus('⚠️ 联网搜索未获取到结果，将基于AI自身知识回答（可能不准确）');
+                        await new Promise(r => setTimeout(r, 1500));
                         removeSearchStatus(statusId2);
+                        
+                        // 添加警告消息到对话
+                        conv.messages.push({ role: 'assistant', content: '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。' });
                         await callAI(conv, content, typingId, []);
                     }
                 } else {
