@@ -929,98 +929,143 @@
             }
         }
 
-        // ===== 语音输入 =====
+        // ===== 语音输入（MediaRecorder + SiliconFlow STT） =====
 
-        let recognition = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
         let isRecording = false;
 
-        function toggleVoiceInput() {
+        async function toggleVoiceInput() {
             if (isRecording) {
                 stopVoiceInput();
                 return;
             }
 
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert('你的浏览器不支持语音输入，请使用 Chrome 或 Safari 浏览器');
+            // 检查浏览器支持
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('你的浏览器不支持录音功能，请使用 Chrome 或 Safari');
                 return;
             }
 
-            recognition = new SpeechRecognition();
-            recognition.lang = 'zh-CN';
-            recognition.continuous = true;
-            recognition.interimResults = true;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // 选择支持的音频格式
+                let mimeType = 'audio/webm';
+                if (!MediaRecorder.isTypeSupported('audio/webm')) {
+                    if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+                    else mimeType = '';
+                }
 
-            let finalTranscript = '';
+                mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+                audioChunks = [];
 
-            recognition.onstart = () => {
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) audioChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
+                    await transcribeAudio(blob);
+                };
+
+                mediaRecorder.start();
                 isRecording = true;
+
+                // UI 状态
                 document.getElementById('voiceBtn').classList.add('recording');
                 document.getElementById('voiceBtn').textContent = '⏹ 停止录音';
                 const overlay = document.getElementById('voiceOverlay');
                 overlay.classList.add('active');
                 overlay.onclick = stopVoiceInput;
-            };
+                overlay.querySelector('.voice-text').textContent = '正在听...';
+                overlay.querySelector('.voice-hint').textContent = '说完后点击任意处停止';
 
-            recognition.onresult = (event) => {
-                let interim = '';
-                for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) {
-                        finalTranscript += transcript;
-                    } else {
-                        interim += transcript;
-                    }
-                }
-                // 实时更新识别文字显示
-                const voiceText = document.querySelector('#voiceOverlay .voice-text');
-                if (voiceText) {
-                    voiceText.textContent = finalTranscript + interim || '正在听...';
-                }
-                // 同步到输入框
-                const input = document.getElementById('userInput');
-                input.value = finalTranscript + interim;
-                input.style.height = 'auto';
-                input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-            };
-
-            recognition.onerror = (event) => {
-                console.error('语音识别错误:', event.error);
-                if (event.error === 'not-allowed') {
+            } catch (err) {
+                if (err.name === 'NotAllowedError') {
                     alert('请允许麦克风权限后重试');
-                } else if (event.error === 'no-speech') {
-                    // 没检测到语音，自动停止
+                } else {
+                    alert('录音启动失败：' + err.message);
                 }
-                stopVoiceInput();
-            };
-
-            recognition.onend = () => {
-                stopVoiceInput();
-            };
-
-            try {
-                recognition.start();
-            } catch (e) {
-                alert('语音识别启动失败：' + e.message);
             }
         }
 
         function stopVoiceInput() {
+            if (!isRecording) return;
             isRecording = false;
-            if (recognition) {
-                try { recognition.stop(); } catch (e) {}
-                recognition = null;
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
             }
+
             document.getElementById('voiceBtn').classList.remove('recording');
             document.getElementById('voiceBtn').textContent = '🎤 语音输入';
+            
             const overlay = document.getElementById('voiceOverlay');
-            overlay.classList.remove('active');
+            overlay.querySelector('.voice-text').textContent = '识别中...';
+            overlay.querySelector('.voice-hint').textContent = '正在将语音转为文字';
             overlay.onclick = null;
+        }
 
-            // 保存输入框内容到对话状态
-            const conv = getCurrentConversation();
-            if (conv) {
-                conv.inputText = document.getElementById('userInput').value;
+        async function transcribeAudio(blob) {
+            const overlay = document.getElementById('voiceOverlay');
+            
+            try {
+                const formData = new FormData();
+                // 根据格式确定文件扩展名
+                const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+                formData.append('file', blob, `recording.${ext}`);
+                formData.append('model', 'FunAudioLLM/SenseVoiceSmall');
+                formData.append('language', 'zh');
+
+                const response = await fetch('https://api.siliconflow.cn/v1/audio/transcriptions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.message || `语音识别失败：${response.status}`);
+                }
+
+                const data = await response.json();
+                const text = data.text || '';
+
+                if (text) {
+                    const input = document.getElementById('userInput');
+                    // 追加到已有内容后面
+                    input.value = input.value ? input.value + text : text;
+                    input.style.height = 'auto';
+                    input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+                    
+                    // 保存输入状态
+                    const conv = getCurrentConversation();
+                    if (conv) conv.inputText = input.value;
+
+                    overlay.querySelector('.voice-text').textContent = '✅ ' + text;
+                    overlay.querySelector('.voice-hint').textContent = '已识别，点击关闭';
+                    overlay.onclick = () => { overlay.classList.remove('active'); overlay.onclick = null; };
+                } else {
+                    overlay.querySelector('.voice-text').textContent = '未检测到语音';
+                    overlay.querySelector('.voice-hint').textContent = '点击关闭重试';
+                    overlay.onclick = () => { overlay.classList.remove('active'); overlay.onclick = null; };
+                }
+
+                // 3秒后自动关闭
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                    overlay.onclick = null;
+                }, 3000);
+
+            } catch (err) {
+                console.error('语音识别错误:', err);
+                overlay.querySelector('.voice-text').textContent = '❌ ' + err.message;
+                overlay.querySelector('.voice-hint').textContent = '点击关闭';
+                overlay.onclick = () => { overlay.classList.remove('active'); overlay.onclick = null; };
             }
         }
 
