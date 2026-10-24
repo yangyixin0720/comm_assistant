@@ -478,6 +478,65 @@
             border-radius: 8px;
             margin: 8px 0;
         }
+        /* 消息操作栏（复制 / 引用） */
+        .msg-actions {
+            display: flex;
+            gap: 4px;
+            justify-content: flex-end;
+            margin-top: 8px;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .message:hover .msg-actions { opacity: 1; }
+        .msg-action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 6px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .msg-action-btn:hover { background: var(--accent-soft); color: var(--primary); }
+        .message.user .msg-action-btn { color: rgba(255,255,255,0.75); }
+        .message.user .msg-action-btn:hover { background: rgba(255,255,255,0.18); color: #fff; }
+        /* 代码块复制按钮 */
+        .code-wrap { position: relative; }
+        .code-copy-btn {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            background: rgba(255,255,255,0.12);
+            color: #cbd5e1;
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 6px;
+            font-size: 0.7rem;
+            padding: 3px 9px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        .code-wrap:hover .code-copy-btn { opacity: 1; }
+        .code-copy-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
+        .code-copy-btn.copied { opacity: 1; color: #86efac; border-color: #86efac; }
+        /* 选中文字浮动引用按钮 */
+        .quote-float {
+            display: none;
+            position: fixed;
+            z-index: 300;
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+        }
+        .quote-float.show { display: block; }
         .input-area {
             background: var(--card);
             border-top: 1px solid var(--border);
@@ -1146,6 +1205,7 @@
         .workspace-item:hover .item-zoom { display: flex; }
         @media (max-width: 768px) {
             .workspace-item .item-zoom, .workspace-item .item-remove { display: flex; }
+            .msg-actions { opacity: 1; }
         }
         .workspace-file-item {
             display: flex;
@@ -1354,6 +1414,8 @@
     <div class="lightbox" id="lightbox" onclick="closeLightbox()">
         <img id="lightboxImg" src="" alt="预览">
     </div>
+
+    <button id="quoteFloat" class="quote-float" onmousedown="event.preventDefault()" onclick="quoteSelection()">❝ 引用选中</button>
 
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
     <script>
@@ -2601,6 +2663,8 @@
                         });
                         sourcesHtml += '</details></div>';
                         bubble.innerHTML += sourcesHtml;
+                        attachMsgActions(bubble);
+                        enhanceCodeBlocks(bubble);
 
                         const chatContainer = document.getElementById('chatContainer');
                         chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -2747,6 +2811,8 @@
                     sourcesHtml += '</details></div>';
                     bubble.innerHTML += sourcesHtml;
                 }
+                attachMsgActions(bubble);
+                enhanceCodeBlocks(bubble);
 
                 const container = document.getElementById('chatContainer');
                 container.scrollTop = container.scrollHeight;
@@ -2759,6 +2825,8 @@
                 if (err && err.name === 'AbortError' && fullReply) {
                     if (bubble) {
                         bubble.innerHTML = formatMessage(fullReply) + '<div class="stream-note">⏱️ 回复较长，已在此处中断。发送「继续」可以让我接着讲。</div>';
+                        attachMsgActions(bubble);
+                        enhanceCodeBlocks(bubble);
                     }
                     conv.messages.push({ role: 'assistant', content: fullReply });
                     conv.updatedAt = Date.now();
@@ -2812,11 +2880,146 @@
                 html += '</details></div>';
             }
             bubble.innerHTML = html;
+            attachMsgActions(bubble);
+            enhanceCodeBlocks(bubble);
 
             div.appendChild(avatar);
             div.appendChild(bubble);
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+        }
+
+        // ===== 复制与引用 =====
+        function copyToClipboard(text, okMsg) {
+            const done = () => showToast(okMsg || '已复制到剪贴板');
+            const fallback = () => {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); done(); }
+                catch (e) { showToast('复制失败，请手动选择复制'); }
+                document.body.removeChild(ta);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(fallback);
+            } else {
+                fallback();
+            }
+        }
+
+        // 取气泡的「显示文本」（排除操作按钮与代码复制按钮）
+        function getBubbleText(bubble) {
+            if (!bubble) return '';
+            const hides = bubble.querySelectorAll('.msg-actions, .code-copy-btn');
+            hides.forEach(n => { n.style.display = 'none'; });
+            const t = bubble.innerText.trim();
+            hides.forEach(n => { n.style.display = ''; });
+            return t;
+        }
+
+        function copyMessageText(btn) {
+            const bubble = btn.closest('.bubble');
+            const t = getBubbleText(bubble);
+            if (!t) { showToast('这条消息没有可复制的文字'); return; }
+            copyToClipboard(t, '已复制该条消息');
+        }
+
+        function quoteMessage(btn) {
+            const bubble = btn.closest('.bubble');
+            quoteText(getBubbleText(bubble));
+        }
+
+        // 把引用内容插入输入框（每行加 > 前缀）
+        function quoteText(text) {
+            if (!text || !text.trim()) { showToast('没有可引用的文字'); return; }
+            const ta = document.getElementById('userInput');
+            const quoted = text.trim().split('\n').map(l => '> ' + l).join('\n');
+            const cur = ta.value.replace(/\s+$/, '');
+            ta.value = cur ? cur + '\n\n' + quoted + '\n\n' : quoted + '\n\n';
+            ta.dispatchEvent(new Event('input'));
+            ta.focus();
+            const end = ta.value.length;
+            ta.setSelectionRange(end, end);
+            showToast('已引用到输入框，可继续补充你的问题');
+        }
+
+        // 给气泡加 复制/引用 操作栏
+        function attachMsgActions(bubble) {
+            if (!bubble || bubble.querySelector('.msg-actions')) return;
+            const actions = document.createElement('div');
+            actions.className = 'msg-actions';
+            actions.innerHTML = '<button class="msg-action-btn" onclick="copyMessageText(this)">📋 复制</button>' +
+                                '<button class="msg-action-btn" onclick="quoteMessage(this)">❝ 引用</button>';
+            bubble.appendChild(actions);
+        }
+
+        // 代码块右下角加一键复制按钮
+        function enhanceCodeBlocks(root) {
+            if (!root) return;
+            root.querySelectorAll('pre').forEach(pre => {
+                if (pre.parentElement && pre.parentElement.classList.contains('code-wrap')) return;
+                const wrap = document.createElement('div');
+                wrap.className = 'code-wrap';
+                pre.parentNode.insertBefore(wrap, pre);
+                wrap.appendChild(pre);
+                const btn = document.createElement('button');
+                btn.className = 'code-copy-btn';
+                btn.textContent = '复制';
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    copyToClipboard(pre.innerText.replace(/\s+$/, ''), '代码已复制');
+                    btn.textContent = '已复制';
+                    btn.classList.add('copied');
+                    setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 1500);
+                };
+                wrap.appendChild(btn);
+            });
+        }
+
+        // ===== 选中文字浮动引用按钮 =====
+        let selQuoteText = '';
+        function hideQuoteFloat() {
+            const btn = document.getElementById('quoteFloat');
+            if (btn) btn.classList.remove('show');
+            selQuoteText = '';
+        }
+        function updateQuoteFloat() {
+            const btn = document.getElementById('quoteFloat');
+            if (!btn) return;
+            const sel = window.getSelection();
+            if (!sel || sel.isCollapsed || sel.rangeCount === 0) { hideQuoteFloat(); return; }
+            const text = sel.toString().trim();
+            if (!text) { hideQuoteFloat(); return; }
+            const node = sel.getRangeAt(0).commonAncestorContainer;
+            const el = node.nodeType === 1 ? node : node.parentElement;
+            if (!el || !el.closest || !el.closest('.bubble')) { hideQuoteFloat(); return; }
+            const rect = sel.getRangeAt(0).getBoundingClientRect();
+            if (!rect || (rect.width === 0 && rect.height === 0)) { hideQuoteFloat(); return; }
+            selQuoteText = text;
+            const btnW = 92;
+            let left = rect.left + rect.width / 2 - btnW / 2;
+            left = Math.max(8, Math.min(left, window.innerWidth - btnW - 8));
+            let top = rect.top - 40;
+            if (top < 8) top = rect.bottom + 8;
+            btn.style.left = left + 'px';
+            btn.style.top = top + 'px';
+            btn.classList.add('show');
+        }
+        function quoteSelection() {
+            const t = selQuoteText;
+            hideQuoteFloat();
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();
+            if (t) quoteText(t);
+        }
+        function setupQuoteFloat() {
+            document.addEventListener('mouseup', () => setTimeout(updateQuoteFloat, 10));
+            document.addEventListener('touchend', () => setTimeout(updateQuoteFloat, 10));
+            const chat = document.getElementById('chatContainer');
+            if (chat) chat.addEventListener('scroll', hideQuoteFloat);
         }
 
         function formatMessage(text) {
@@ -3289,6 +3492,7 @@
             renderConversationList();
             updateFeynmanUI();
             setupInputDrop();
+            setupQuoteFloat();
             initTheme();
         }
 
