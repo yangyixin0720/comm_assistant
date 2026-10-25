@@ -1017,10 +1017,11 @@
             display: none;
             align-items: center;
             gap: 6px;
-            background: linear-gradient(135deg, #f59e0b, #ef4444);
-            color: white;
+            background: var(--accent-soft);
+            color: var(--accent-text);
+            border: 1px solid var(--accent-border);
             padding: 4px 12px;
-            border-radius: 20px;
+            border-radius: 16px;
             font-size: 0.75rem;
             font-weight: 600;
             animation: fadeIn 0.3s ease-out;
@@ -1028,18 +1029,20 @@
         .feynman-badge.visible { display: flex; }
         .feynman-end-btn {
             display: none;
-            background: linear-gradient(135deg, #f59e0b, #ef4444);
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 600;
+            background: var(--card);
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 0.8rem;
+            font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
+            align-items: center;
+            gap: 6px;
         }
         .feynman-end-btn.visible { display: inline-flex; }
-        .feynman-end-btn:hover { transform: scale(1.05); box-shadow: 0 2px 8px rgba(245,158,11,0.4); }
+        .feynman-end-btn:hover { background: var(--primary); color: #fff; }
         .feynman-intro {
             background: linear-gradient(135deg, #fffbeb, #fef3c7);
             border: 1px solid #fbbf24;
