@@ -187,26 +187,15 @@
             color: var(--text-secondary);
             margin-top: 2px;
         }
-        .header-right {
+        .header-actions {
             flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            gap: 6px;
-            margin-left: 24px;
-        }
-        .header-row-top {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-        }
-        .header-row-main {
             display: flex;
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
+            margin-left: 24px;
         }
-        .header-row-main .workspace-toggle { margin-left: auto; }
+        .header-actions .theme-wrap { margin-left: auto; }
         .header-btn {
             padding: 6px 14px;
             background: var(--chip-bg);
@@ -223,7 +212,7 @@
             background: var(--accent-soft);
             color: var(--primary);
         }
-        .theme-wrap { position: relative; }
+        .theme-wrap { position: relative; display: flex; align-items: center; }
         .theme-menu {
             display: none;
             position: absolute;
@@ -1388,9 +1377,15 @@
                 <span class="subtitle">有什么不懂的，直接问</span>
             </div>
         </div>
-        <div class="header-right">
-            <div class="header-row-top">
-                <div class="theme-wrap">
+        <div class="header-actions">
+            <span class="feynman-badge" id="feynmanBadge">🎓 费曼模式</span>
+            <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊 结束评估</button>
+            <span class="header-btn" onclick="openMindmap()">🗺 思维导图</span>
+            <span class="header-btn" onclick="openNotes()">📝 笔记</span>
+            <span class="header-btn" onclick="openQuiz()">✍️ 测验</span>
+            <span class="header-btn" onclick="startFeynmanMode()">🎓 费曼学习</span>
+            <span class="header-btn" onclick="shareConversation()">分享对话</span>
+            <div class="theme-wrap">
                 <span class="header-btn" onclick="toggleThemeMenu(event)">🎨 主题</span>
                 <div class="theme-menu" id="themeMenu">
                     <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')">
@@ -1418,18 +1413,8 @@
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#52525b,#f4f4f5)"></span>石墨灰
                     </div>
                 </div>
-                </div>
             </div>
-            <div class="header-row-main">
-                <span class="feynman-badge" id="feynmanBadge">🎓 费曼模式</span>
-                <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊 结束评估</button>
-                <span class="header-btn" onclick="openMindmap()">🗺 思维导图</span>
-                <span class="header-btn" onclick="openNotes()">📝 笔记</span>
-                <span class="header-btn" onclick="openQuiz()">✍️ 测验</span>
-                <span class="header-btn" onclick="startFeynmanMode()">🎓 费曼学习</span>
-                <span class="header-btn" onclick="shareConversation()">分享对话</span>
-                <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂 工作区</button>
-            </div>
+            <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂 工作区</button>
         </div>
     </header>
 
