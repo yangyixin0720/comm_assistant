@@ -196,6 +196,9 @@
             margin-left: 24px;
         }
         .header-actions .theme-wrap { margin-left: auto; }
+        /* 桌面端：tool-scroll / tool-fixed 仅作逻辑分组，子元素直接参与 .header-actions 布局 */
+        .header-actions .tool-scroll,
+        .header-actions .tool-fixed { display: contents; }
         .header-btn {
             padding: 6px 14px;
             background: var(--chip-bg);
@@ -1094,11 +1097,33 @@
             .header-actions {
                 flex-basis: 100%;
                 margin-left: 0;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
+                align-items: center;
                 gap: 6px;
             }
             .header-actions > * { flex-shrink: 0; white-space: nowrap; }
             .header-actions .theme-wrap { margin-left: 0; }
+            /* 移动端：功能区图标在左侧横向滑动，主题/工作区固定在最右，整体只占一行 */
+            .header-actions .tool-scroll {
+                display: flex;
+                flex: 1 1 auto;
+                min-width: 0;
+                gap: 6px;
+                align-items: center;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .header-actions .tool-scroll::-webkit-scrollbar { display: none; }
+            .header-actions .tool-scroll > * { flex-shrink: 0; }
+            .header-actions .tool-fixed {
+                display: flex;
+                flex: 0 0 auto;
+                gap: 6px;
+                align-items: center;
+                margin-left: 4px;
+            }
             .header-btn, .workspace-toggle, .feynman-badge, .feynman-end-btn {
                 padding: 5px 9px;
                 font-size: 0.85rem;
@@ -1545,15 +1570,18 @@
             </div>
         </div>
         <div class="header-actions">
-            <span class="feynman-badge" id="feynmanBadge">🎓<span class="hb-label"> 费曼模式</span></span>
-            <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊<span class="hb-label"> 结束评估</span></button>
-            <span class="header-btn" onclick="openMindmap()">🗺<span class="hb-label"> 思维导图</span></span>
-            <span class="header-btn" onclick="openNotes()">📝<span class="hb-label"> 笔记</span></span>
-            <span class="header-btn" onclick="openQuiz()">✍️<span class="hb-label"> 测验</span></span>
-            <span class="header-btn" onclick="startFeynmanMode()">🎓<span class="hb-label"> 费曼学习</span></span>
-            <span class="header-btn" onclick="shareConversation()">🔗<span class="hb-label"> 分享对话</span></span>
-            <div class="theme-wrap">
-                <span class="header-btn" onclick="toggleThemeMenu(event)">🎨<span class="hb-label"> 主题</span></span>
+            <div class="tool-scroll">
+                <span class="feynman-badge" id="feynmanBadge">🎓<span class="hb-label"> 费曼模式</span></span>
+                <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊<span class="hb-label"> 结束评估</span></button>
+                <span class="header-btn" onclick="openMindmap()">🗺<span class="hb-label"> 思维导图</span></span>
+                <span class="header-btn" onclick="openNotes()">📝<span class="hb-label"> 笔记</span></span>
+                <span class="header-btn" onclick="openQuiz()">✍️<span class="hb-label"> 测验</span></span>
+                <span class="header-btn" onclick="startFeynmanMode()">🎓<span class="hb-label"> 费曼学习</span></span>
+                <span class="header-btn" onclick="shareConversation()">🔗<span class="hb-label"> 分享对话</span></span>
+            </div>
+            <div class="tool-fixed">
+                <div class="theme-wrap">
+                    <span class="header-btn" onclick="toggleThemeMenu(event)">🎨<span class="hb-label"> 主题</span></span>
                 <div class="theme-menu" id="themeMenu">
                     <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#6366f1,#fafafa)"></span>默认紫
@@ -1580,8 +1608,9 @@
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#52525b,#f4f4f5)"></span>石墨灰
                     </div>
                 </div>
+                </div>
+                <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂<span class="hb-label"> 工作区</span></button>
             </div>
-            <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂<span class="hb-label"> 工作区</span></button>
         </div>
     </header>
 
