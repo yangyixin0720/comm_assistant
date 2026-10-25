@@ -1045,18 +1045,12 @@
             .header-actions {
                 flex-basis: 100%;
                 margin-left: 0;
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                overflow-y: hidden;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
+                flex-wrap: wrap;
                 gap: 6px;
-                padding-bottom: 2px;
             }
-            .header-actions::-webkit-scrollbar { display: none; }
             .header-actions > * { flex-shrink: 0; white-space: nowrap; }
             .header-actions .theme-wrap { margin-left: 0; }
-            .header-btn { padding: 6px 10px; font-size: 0.78rem; }
+            .header-btn { padding: 5px 10px; font-size: 0.75rem; }
             .theme-menu {
                 position: fixed;
                 top: 96px;
@@ -1069,40 +1063,27 @@
                 gap: 14px;
                 -webkit-overflow-scrolling: touch;
             }
-            /* 消息操作条：单行紧凑、横向可滑，不再折行占空间 */
+            /* 消息操作条：紧凑小字，完整显示不滑动 */
             .msg-actions {
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                overflow-y: hidden;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
+                flex-wrap: wrap;
                 justify-content: flex-start;
                 gap: 2px;
                 margin-top: 4px;
             }
-            .msg-actions::-webkit-scrollbar { display: none; }
             .msg-action-btn {
-                flex-shrink: 0;
                 white-space: nowrap;
                 font-size: 0.68rem;
                 padding: 1px 5px;
                 gap: 2px;
             }
-            /* 快捷动作：单行横向滑动，整齐不折行 */
+            /* 快捷动作：紧凑排布，完整显示不滑动 */
             .quick-actions {
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                overflow-y: hidden;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
+                flex-wrap: wrap;
                 gap: 6px;
                 margin-top: 8px;
                 max-width: 100%;
-                padding-bottom: 2px;
             }
-            .quick-actions::-webkit-scrollbar { display: none; }
             .quick-btn {
-                flex-shrink: 0;
                 white-space: nowrap;
                 padding: 5px 10px;
                 font-size: 0.75rem;
@@ -1120,15 +1101,10 @@
                 min-width: 0;
                 margin-top: 0;
                 order: 1;
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                overflow-y: hidden;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
+                flex-wrap: wrap;
+                gap: 6px;
             }
-            .input-actions::-webkit-scrollbar { display: none; }
             .action-btn {
-                flex-shrink: 0;
                 white-space: nowrap;
                 font-size: 0.72rem;
                 padding: 4px 8px;
