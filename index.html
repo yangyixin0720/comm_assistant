@@ -1042,6 +1042,8 @@
                 padding: 10px 12px;
             }
             .subtitle { display: none; }
+            /* 顶栏只显示图标，一行放下全部功能，不滑动不折行 */
+            .hb-label { display: none; }
             .header-actions {
                 flex-basis: 100%;
                 margin-left: 0;
@@ -1050,7 +1052,10 @@
             }
             .header-actions > * { flex-shrink: 0; white-space: nowrap; }
             .header-actions .theme-wrap { margin-left: 0; }
-            .header-btn { padding: 5px 10px; font-size: 0.75rem; }
+            .header-btn, .workspace-toggle, .feynman-badge, .feynman-end-btn {
+                padding: 5px 9px;
+                font-size: 0.85rem;
+            }
             .theme-menu {
                 position: fixed;
                 top: 96px;
@@ -1088,34 +1093,31 @@
                 padding: 5px 10px;
                 font-size: 0.75rem;
             }
-            /* 输入区：文本框占满整行，功能键与发送键共用一行 */
+            /* 输入区：发送键在文本框右侧；三个功能键独占一行等宽排布，不折行不滑动 */
             .input-wrapper {
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 gap: 8px;
-                align-items: center;
+                align-items: flex-start;
             }
-            .input-container { display: contents; }
-            .input-wrapper textarea { flex-basis: 100%; order: 0; }
+            .input-container { flex: 1; min-width: 0; }
             .input-actions {
-                flex: 1;
-                min-width: 0;
-                margin-top: 0;
-                order: 1;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 gap: 6px;
+                margin-top: 6px;
             }
             .action-btn {
+                flex: 1;
+                justify-content: center;
                 white-space: nowrap;
                 font-size: 0.72rem;
-                padding: 4px 8px;
+                padding: 5px 4px;
             }
-            .send-btn { order: 2; margin-left: auto; }
-            #imagePreview, #filePreview { order: 3; flex-basis: 100%; }
             .send-btn {
-                height: 40px;
-                padding: 0 18px;
+                flex-shrink: 0;
+                height: 48px;
+                padding: 0 16px;
                 font-size: 0.9rem;
-                border-radius: 10px;
+                border-radius: 12px;
             }
         }
 
@@ -1496,15 +1498,15 @@
             </div>
         </div>
         <div class="header-actions">
-            <span class="feynman-badge" id="feynmanBadge">🎓 费曼模式</span>
-            <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊 结束评估</button>
-            <span class="header-btn" onclick="openMindmap()">🗺 思维导图</span>
-            <span class="header-btn" onclick="openNotes()">📝 笔记</span>
-            <span class="header-btn" onclick="openQuiz()">✍️ 测验</span>
-            <span class="header-btn" onclick="startFeynmanMode()">🎓 费曼学习</span>
-            <span class="header-btn" onclick="shareConversation()">分享对话</span>
+            <span class="feynman-badge" id="feynmanBadge">🎓<span class="hb-label"> 费曼模式</span></span>
+            <button class="feynman-end-btn" id="feynmanEndBtn" onclick="endFeynmanSession()">📊<span class="hb-label"> 结束评估</span></button>
+            <span class="header-btn" onclick="openMindmap()">🗺<span class="hb-label"> 思维导图</span></span>
+            <span class="header-btn" onclick="openNotes()">📝<span class="hb-label"> 笔记</span></span>
+            <span class="header-btn" onclick="openQuiz()">✍️<span class="hb-label"> 测验</span></span>
+            <span class="header-btn" onclick="startFeynmanMode()">🎓<span class="hb-label"> 费曼学习</span></span>
+            <span class="header-btn" onclick="shareConversation()">🔗<span class="hb-label"> 分享对话</span></span>
             <div class="theme-wrap">
-                <span class="header-btn" onclick="toggleThemeMenu(event)">🎨 主题</span>
+                <span class="header-btn" onclick="toggleThemeMenu(event)">🎨<span class="hb-label"> 主题</span></span>
                 <div class="theme-menu" id="themeMenu">
                     <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#6366f1,#fafafa)"></span>默认紫
@@ -1532,7 +1534,7 @@
                     </div>
                 </div>
             </div>
-            <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂 工作区</button>
+            <button class="workspace-toggle" id="workspaceToggle" onclick="toggleWorkspace()">📂<span class="hb-label"> 工作区</span></button>
         </div>
     </header>
 
@@ -1776,10 +1778,9 @@
             document.getElementById('feynmanBadge').classList.toggle('visible', isFeynman || isDone);
             document.getElementById('feynmanEndBtn').classList.toggle('visible', isFeynman);
 
-            if (isDone) {
-                document.getElementById('feynmanBadge').textContent = '🎓 评估已完成';
-            } else {
-                document.getElementById('feynmanBadge').textContent = '🎓 费曼模式';
+            const badgeLabel = document.querySelector('#feynmanBadge .hb-label');
+            if (badgeLabel) {
+                badgeLabel.textContent = isDone ? ' 评估已完成' : ' 费曼模式';
             }
 
             // 更新输入框提示
