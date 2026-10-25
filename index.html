@@ -574,6 +574,53 @@
             box-shadow: 0 4px 14px rgba(0,0,0,0.25);
         }
         .quote-float.show { display: block; }
+        /* 批注浮动按钮（PC） */
+        .annot-float { background: #e67e22; }
+        /* 批注输入浮层 */
+        .annot-pop {
+            display: none;
+            position: fixed;
+            z-index: 320;
+            background: #fff;
+            border: 1px solid #e67e22;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+            width: 260px;
+            box-sizing: border-box;
+        }
+        .annot-pop.show { display: block; }
+        .annot-pop input {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 0.85rem;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .annot-pop input:focus { border-color: #e67e22; }
+        .annot-pop-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+        .annot-pop-btns button { border: none; border-radius: 6px; padding: 5px 12px; font-size: 0.8rem; cursor: pointer; }
+        .annot-ok { background: #e67e22; color: #fff; }
+        .annot-cancel { background: #eee; color: #555; }
+        /* 批注效果：选中部分上下画线；旁边批注文字用别的字体 */
+        .annotated {
+            border-top: 2px solid #e67e22;
+            border-bottom: 2px solid #e67e22;
+            padding: 1px 0;
+            background: rgba(230,126,34,0.10);
+        }
+        .annot-note {
+            font-family: "Kaiti SC","KaiTi","STKaiti","楷体","DFKai-SB",cursive,serif;
+            color: #e67e22;
+            font-size: 0.92em;
+            margin-left: 6px;
+            vertical-align: super;
+            white-space: nowrap;
+        }
+        .annot-note::before { content: "〔批注·"; }
+        .annot-note::after { content: "〕"; }
         /* 通用模态框 */
         .modal-overlay {
             display: none;
@@ -1630,6 +1677,14 @@
     </div>
 
     <button id="quoteFloat" class="quote-float" onmousedown="event.preventDefault()" onclick="quoteSelection()">❝ 引用选中</button>
+    <button id="annotFloat" class="quote-float annot-float" onmousedown="event.preventDefault()" onclick="openAnnotPop()">✍️ 批注</button>
+    <div id="annotPop" class="annot-pop">
+        <input id="annotInput" type="text" placeholder="输入批注文字…" maxlength="60" onkeydown="if(event.key==='Enter'){event.preventDefault();applyAnnotation();}" />
+        <div class="annot-pop-btns">
+            <button class="annot-ok" onclick="applyAnnotation()">确定</button>
+            <button class="annot-cancel" onclick="closeAnnotPop()">取消</button>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
     <script>
@@ -3242,9 +3297,15 @@
 
         // ===== 选中文字浮动引用按钮 =====
         let selQuoteText = '';
+        let selRange = null;
+        function isDesktop() {
+            return window.matchMedia('(hover:hover) and (pointer:fine)').matches && window.innerWidth > 768;
+        }
         function hideQuoteFloat() {
             const btn = document.getElementById('quoteFloat');
             if (btn) btn.classList.remove('show');
+            const aBtn = document.getElementById('annotFloat');
+            if (aBtn) aBtn.classList.remove('show');
             selQuoteText = '';
         }
         function updateQuoteFloat() {
@@ -3260,6 +3321,7 @@
             const rect = sel.getRangeAt(0).getBoundingClientRect();
             if (!rect || (rect.width === 0 && rect.height === 0)) { hideQuoteFloat(); return; }
             selQuoteText = text;
+            selRange = sel.getRangeAt(0).cloneRange();
             const btnW = 92;
             let left = rect.left + rect.width / 2 - btnW / 2;
             left = Math.max(8, Math.min(left, window.innerWidth - btnW - 8));
@@ -3268,6 +3330,20 @@
             btn.style.left = left + 'px';
             btn.style.top = top + 'px';
             btn.classList.add('show');
+            // PC 端在引用按钮右侧再放一个批注按钮
+            const aBtn = document.getElementById('annotFloat');
+            if (aBtn) {
+                if (isDesktop()) {
+                    const aW = 70;
+                    let aLeft = left + btnW + 6;
+                    aLeft = Math.min(aLeft, window.innerWidth - aW - 8);
+                    aBtn.style.left = aLeft + 'px';
+                    aBtn.style.top = top + 'px';
+                    aBtn.classList.add('show');
+                } else {
+                    aBtn.classList.remove('show');
+                }
+            }
         }
         function quoteSelection() {
             const t = selQuoteText;
@@ -3275,6 +3351,56 @@
             const sel = window.getSelection();
             if (sel) sel.removeAllRanges();
             if (t) quoteText(t);
+        }
+        // ===== 批注（PC）：选中部分上下画线，旁边显示批注文字 =====
+        function openAnnotPop() {
+            const pop = document.getElementById('annotPop');
+            if (!pop || !selRange) return;
+            hideQuoteFloat();
+            const rect = selRange.getBoundingClientRect();
+            let left = Math.max(8, Math.min(rect.left, window.innerWidth - 268));
+            let top = rect.bottom + 8;
+            if (top + 96 > window.innerHeight) top = Math.max(8, rect.top - 100);
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+            pop.classList.add('show');
+            const inp = document.getElementById('annotInput');
+            inp.value = '';
+            setTimeout(() => inp.focus(), 20);
+        }
+        function closeAnnotPop() {
+            const pop = document.getElementById('annotPop');
+            if (pop) pop.classList.remove('show');
+            selRange = null;
+            const sel = window.getSelection();
+            if (sel) sel.removeAllRanges();
+        }
+        function applyAnnotation() {
+            const inp = document.getElementById('annotInput');
+            const text = (inp ? inp.value : '').trim();
+            const range = selRange;
+            closeAnnotPop();
+            if (!text || !range) return;
+            const wrap = document.createElement('span');
+            wrap.className = 'annotated';
+            try {
+                range.surroundContents(wrap);
+            } catch (e) {
+                try {
+                    const frag = range.extractContents();
+                    wrap.appendChild(frag);
+                    range.insertNode(wrap);
+                } catch (e2) {
+                    showToast('选区跨多个段落，无法批注');
+                    return;
+                }
+            }
+            const note = document.createElement('span');
+            note.className = 'annot-note';
+            note.textContent = text;
+            note.title = text;
+            wrap.insertAdjacentElement('afterend', note);
+            showToast('已添加批注');
         }
         function setupQuoteFloat() {
             document.addEventListener('mouseup', () => setTimeout(updateQuoteFloat, 10));
