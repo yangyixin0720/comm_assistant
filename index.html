@@ -1598,31 +1598,51 @@
 
         // ===== 费曼学习法模式 =====
 
-        function startFeynmanMode() {
-            const id = generateId();
-            const conv = createConversationData(id, '🎓 费曼学习');
-            conv.mode = 'feynman';
-            conv.messages = [{ role: 'system', content: FEYNMAN_PROMPT }];
-            conversations[id] = conv;
-            saveConversations();
-            switchToConversation(id);
-            renderConversationList();
-            updateFeynmanUI();
-
-            // AI 先开口引导
-            const container = document.getElementById('chatContainer');
-            container.innerHTML = `
+        function feynmanIntroHtml() {
+            return `
                 <div class="feynman-intro">
                     <h3>🎓 费曼学习法</h3>
                     <p>用最简单的话把知识讲给别人听，是检验你是否真正掌握的最好方法。</p>
                     <p style="margin-top:8px;color:#78350f;"><strong>规则：</strong>你来当老师，我来当好奇的同学。我会不断追问，直到你能把问题讲得连"小白"都听懂为止。</p>
                 </div>
             `;
-            // AI 发出第一条引导消息
+        }
+
+        // 在“当前对话”内开启费曼模式（不再新建对话）；结束评估后可再次开启
+        function startFeynmanMode() {
+            let conv = getCurrentConversation();
+            if (!conv) { createNewChat(); conv = getCurrentConversation(); }
+            if (conv.mode === 'feynman') { showToast('费曼模式已开启'); return; }
+            if (conv.isLoading) { showToast('请等待当前回复结束'); return; }
+
+            // 记住原系统提示，切换为费曼提示
+            if (conv._prevSystem === undefined) {
+                const cur = (conv.messages[0] && conv.messages[0].role === 'system') ? conv.messages[0].content : SYSTEM_PROMPT;
+                conv._prevSystem = (cur === FEYNMAN_PROMPT) ? SYSTEM_PROMPT : cur;
+            }
+            if (conv.messages[0] && conv.messages[0].role === 'system') {
+                conv.messages[0].content = FEYNMAN_PROMPT;
+            } else {
+                conv.messages.unshift({ role: 'system', content: FEYNMAN_PROMPT });
+            }
+            conv.mode = 'feynman';
+
+            // AI 先开口引导
             const greeting = '你好呀！听说你要给我讲一个新知识点？我超好奇的！你想讲什么主题呢？随便什么都行，数学、物理、历史、编程... come on！';
-            conv.messages.push({ role: 'assistant', content: greeting });
+            conv.messages.push({ role: 'assistant', content: greeting, feynmanIntro: true });
+            conv.updatedAt = Date.now();
             saveConversations();
+
+            // 在当前对话内插入介绍卡与引导语（保留历史消息）
+            const container = document.getElementById('chatContainer');
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) emptyState.remove();
+            container.insertAdjacentHTML('beforeend', feynmanIntroHtml());
             addMessage('ai', greeting, [], false);
+            container.scrollTop = container.scrollHeight;
+
+            renderConversationList();
+            updateFeynmanUI();
         }
 
         function endFeynmanSession() {
@@ -1642,6 +1662,10 @@
             callAI(conv, evalMsg, typingId, []).then(() => {
                 conv.isLoading = false;
                 conv.mode = 'feynman_done';
+                // 评估完成后恢复原系统提示，方便继续普通提问
+                if (conv._prevSystem !== undefined && conv.messages[0] && conv.messages[0].role === 'system') {
+                    conv.messages[0].content = conv._prevSystem;
+                }
                 saveConversations();
                 document.getElementById('sendBtn').disabled = false;
                 updateFeynmanUI();
@@ -2313,20 +2337,11 @@
             
             container.innerHTML = '';
 
-            // 费曼模式显示介绍卡片
-            if (conv && (conv.mode === 'feynman' || conv.mode === 'feynman_done')) {
-                container.innerHTML = `
-                    <div class="feynman-intro">
-                        <h3>🎓 费曼学习法</h3>
-                        <p>用最简单的话把知识讲给别人听，是检验你是否真正掌握的最好方法。</p>
-                        <p style="margin-top:8px;color:#78350f;"><strong>规则：</strong>你来当老师，我来当好奇的同学。我会不断追问，直到你能把问题讲得连"小白"都听懂为止。</p>
-                    </div>
-                `;
-            }
-
             msgs.forEach(msg => {
                 // 跳过费曼模式的内部评估指令
                 if (msg.content === '[请给出最终评估]') return;
+                // 每一轮费曼开始时，在其引导语前插入介绍卡（保留历史消息顺序）
+                if (msg.feynmanIntro) container.insertAdjacentHTML('beforeend', feynmanIntroHtml());
                 if (Array.isArray(msg.content)) {
                     const text = msg.displayText !== undefined ? msg.displayText : (msg.content.find(c => c.type === 'text')?.text || '');
                     const images = msg.content.filter(c => c.type === 'image_url').map(c => c.image_url?.url);
