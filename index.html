@@ -1033,6 +1033,44 @@
             .input-area { padding: 12px 16px; }
         }
 
+        /* 移动端：顶栏工具改为单行横向滑动，避免挤占对话区 */
+        @media (max-width: 768px) {
+            body { height: 100dvh; }
+            header {
+                flex-wrap: wrap;
+                row-gap: 8px;
+                padding: 10px 12px;
+            }
+            .subtitle { display: none; }
+            .header-actions {
+                flex-basis: 100%;
+                margin-left: 0;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                gap: 6px;
+                padding-bottom: 2px;
+            }
+            .header-actions::-webkit-scrollbar { display: none; }
+            .header-actions > * { flex-shrink: 0; white-space: nowrap; }
+            .header-actions .theme-wrap { margin-left: 0; }
+            .header-btn { padding: 6px 10px; font-size: 0.78rem; }
+            .theme-menu {
+                position: fixed;
+                top: 96px;
+                left: 12px;
+                right: 12px;
+                min-width: 0;
+            }
+            .chat-container {
+                padding: 12px;
+                gap: 14px;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
         /* 费曼模式样式 */
         .feynman-badge {
             display: none;
@@ -1550,7 +1588,9 @@
         const STORAGE_KEY = 'learning_assistant_conversations';
         const THEME_KEY = 'learning_assistant_theme';
 
-        const SYSTEM_PROMPT = `你是一个通用的学习助手，帮助学生理解各种学科知识。
+        const SYSTEM_PROMPT = `你的身份：你是"学习助手"，一个由 yyx 创作的 AI 学习智能体。当用户问"你是谁""你叫什么""谁创作了你"等身份问题时，回答：你是由 yyx 创作的学习助手。绝对不要说自己是通义千问、Qwen、阿里或其他任何模型/公司的产品。
+
+你是一个通用的学习助手，帮助学生理解各种学科知识。
 
 回答要求：
 - 用通俗易懂的中文解释，适合学生理解
@@ -1564,7 +1604,9 @@
 - 回答要简洁，不要重复相同的内容
 - 如果提供了搜索结果，优先基于搜索结果回答，并在回答末尾标注信息来源`;
 
-        const FEYNMAN_PROMPT = `你现在扮演一个好奇、爱追问的同学。学生将给你讲解一个知识点，你的任务是通过提问来检验他是否真正理解。
+        const FEYNMAN_PROMPT = `身份提醒：你是由 yyx 创作的"学习助手"，此刻在费曼模式中扮演一个好奇的同学。若被问到身份，仍回答由 yyx 创作的学习助手，不要说自己是通义千问或 Qwen。
+
+你现在扮演一个好奇、爱追问的同学。学生将给你讲解一个知识点，你的任务是通过提问来检验他是否真正理解。
 
 你的行为规则：
 1. 先让学生选择要讲解的主题，然后认真"听讲"
