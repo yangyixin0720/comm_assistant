@@ -1069,6 +1069,44 @@
                 gap: 14px;
                 -webkit-overflow-scrolling: touch;
             }
+            /* 消息操作条：单行紧凑、横向可滑，不再折行占空间 */
+            .msg-actions {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                justify-content: flex-start;
+                gap: 2px;
+                margin-top: 4px;
+            }
+            .msg-actions::-webkit-scrollbar { display: none; }
+            .msg-action-btn {
+                flex-shrink: 0;
+                white-space: nowrap;
+                font-size: 0.68rem;
+                padding: 1px 5px;
+                gap: 2px;
+            }
+            /* 快捷动作：单行横向滑动，整齐不折行 */
+            .quick-actions {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                gap: 6px;
+                margin-top: 8px;
+                max-width: 100%;
+                padding-bottom: 2px;
+            }
+            .quick-actions::-webkit-scrollbar { display: none; }
+            .quick-btn {
+                flex-shrink: 0;
+                white-space: nowrap;
+                padding: 5px 10px;
+                font-size: 0.75rem;
+            }
         }
 
         /* 费曼模式样式 */
