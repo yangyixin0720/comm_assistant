@@ -416,6 +416,38 @@
         .message.ai .avatar {
             background: var(--ai-msg);
             color: var(--text);
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .avatar-opt {
+            font-size: 1.45rem;
+            padding: 9px 0;
+            text-align: center;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--chip-bg);
+            cursor: pointer;
+            transition: transform 0.12s;
+        }
+        .avatar-opt:hover { transform: scale(1.08); }
+        .avatar-opt.active {
+            border-color: var(--primary);
+            background: var(--accent-soft);
+        }
+        @media (max-width: 640px) {
+            .avatar-grid { grid-template-columns: repeat(6, 1fr); }
         }
         .bubble {
             padding: 12px 16px;
@@ -2812,6 +2844,7 @@
                 <div class="avatar">🤖</div>
                 <div class="bubble"><span class="streaming-cursor">▊</span></div>
             `;
+            renderAvatarInto(div.querySelector('.avatar'));
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
             return div.querySelector('.bubble');
@@ -2945,7 +2978,11 @@
 
             const avatar = document.createElement('div');
             avatar.className = 'avatar';
-            avatar.textContent = role === 'user' ? '' : '🤖';
+            if (role === 'user') {
+                avatar.textContent = '';
+            } else {
+                renderAvatarInto(avatar);
+            }
 
             const bubble = document.createElement('div');
             bubble.className = 'bubble';
@@ -3178,6 +3215,7 @@
                 </div>
             `;
 
+            renderAvatarInto(div.querySelector('.avatar'));
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
             return div.id;
@@ -3849,6 +3887,95 @@
         }
 
         // 模态框内事件委托
+        // ============ AI 头像 ============
+        const AVATAR_KEY = 'learning_assistant_avatar';
+        const AVATAR_PRESETS = ['🤖','🧑‍🏫','👩‍🎓','🦉','🐱','🐼','🦊','🐸','🌟','🚀','💡','🧠','📚','🎓','🔮','🌈'];
+
+        function getAvatar() {
+            try {
+                const raw = localStorage.getItem(AVATAR_KEY);
+                if (raw) {
+                    const a = JSON.parse(raw);
+                    if (a && (a.type === 'emoji' || a.type === 'image') && a.value) return a;
+                }
+            } catch (e) {}
+            return { type: 'emoji', value: '🤖' };
+        }
+
+        function saveAvatar(a) {
+            try {
+                localStorage.setItem(AVATAR_KEY, JSON.stringify(a));
+                return true;
+            } catch (e) {
+                showToast('保存失败：图片可能过大');
+                return false;
+            }
+        }
+
+        function renderAvatarInto(el) {
+            if (!el) return;
+            const a = getAvatar();
+            if (a.type === 'image') {
+                el.innerHTML = '<img src="' + a.value + '" alt="AI头像">';
+            } else {
+                el.textContent = a.value;
+            }
+        }
+
+        function updateAllAiAvatars() {
+            document.querySelectorAll('.message.ai .avatar').forEach(renderAvatarInto);
+        }
+
+        function openAvatarPicker() {
+            const cur = getAvatar();
+            let grid = '<div class="avatar-grid">';
+            AVATAR_PRESETS.forEach(em => {
+                const active = (cur.type === 'emoji' && cur.value === em) ? ' active' : '';
+                grid += '<div class="avatar-opt' + active + '" data-avatar-emoji="' + em + '">' + em + '</div>';
+            });
+            grid += '</div>';
+            const curImg = cur.type === 'image'
+                ? '<div style="margin-bottom:12px;text-align:center;"><div class="avatar" style="width:56px;height:56px;margin:0 auto;font-size:1.6rem;background:var(--ai-msg);"><img src="' + cur.value + '" alt="当前头像"></div><div style="font-size:0.8rem;color:var(--text-secondary);margin-top:6px;">当前自定义头像</div></div>'
+                : '';
+            const html = curImg + grid +
+                '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+                '<button class="quick-btn" data-avatar-upload style="flex:1;">📁 从本地选择图片</button>' +
+                '<button class="quick-btn" data-avatar-reset style="flex:1;">↩ 恢复默认</button>' +
+                '</div>' +
+                '<input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleAvatarFile(this.files[0])">' +
+                '<p style="font-size:0.78rem;color:var(--text-secondary);margin-top:10px;line-height:1.6;">自定义图片会自动裁剪为方形并压缩后仅保存在本地浏览器。</p>';
+            showModal('🎨 更换 AI 头像', html);
+        }
+
+        function handleAvatarFile(file) {
+            if (!file) return;
+            if (!file.type || file.type.indexOf('image/') !== 0) { showToast('请选择图片文件'); return; }
+            if (file.size > 5 * 1024 * 1024) { showToast('图片请小于 5MB'); return; }
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+                const img = new Image();
+                img.onload = function () {
+                    const size = 128;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = size; canvas.height = size;
+                    const ctx = canvas.getContext('2d');
+                    const s = Math.min(img.width, img.height);
+                    const sx = (img.width - s) / 2, sy = (img.height - s) / 2;
+                    ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    if (saveAvatar({ type: 'image', value: dataUrl })) {
+                        updateAllAiAvatars();
+                        closeModal();
+                        showToast('头像已更新');
+                    }
+                };
+                img.onerror = function () { showToast('图片读取失败'); };
+                img.src = ev.target.result;
+            };
+            reader.onerror = function () { showToast('文件读取失败'); };
+            reader.readAsDataURL(file);
+        }
+
         function setupModalActions() {
             document.getElementById('modalBody').addEventListener('click', (e) => {
                 const t = e.target;
@@ -3901,6 +4028,26 @@
                     if (!item) return;
                     closeModal();
                     sendRawQuestion('请重新讲解这道题，并说明为什么答案是 ' + item.answer + '：\n' + item.title + '\n' + item.opts.map(o => o.key + '. ' + o.text).join('\n'));
+                    return;
+                }
+                const avEmoji = t.closest('[data-avatar-emoji]');
+                if (avEmoji) {
+                    saveAvatar({ type: 'emoji', value: avEmoji.getAttribute('data-avatar-emoji') });
+                    updateAllAiAvatars();
+                    closeModal();
+                    showToast('头像已更新');
+                    return;
+                }
+                if (t.closest('[data-avatar-upload]')) {
+                    const fi = document.getElementById('avatarFileInput');
+                    if (fi) fi.click();
+                    return;
+                }
+                if (t.closest('[data-avatar-reset]')) {
+                    saveAvatar({ type: 'emoji', value: '🤖' });
+                    updateAllAiAvatars();
+                    closeModal();
+                    showToast('已恢复默认头像');
                     return;
                 }
             });
@@ -3961,6 +4108,10 @@
             setupQuoteFloat();
             setupModalActions();
             initTheme();
+            document.addEventListener('click', (e) => {
+                const av = e.target.closest('.message.ai .avatar');
+                if (av) openAvatarPicker();
+            });
         }
 
         init();
