@@ -1090,55 +1090,6 @@
         .empty-state-text {
             font-size: 1rem;
         }
-        .search-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 16px;
-            background: #eef2ff;
-            border: 1px solid rgba(99, 102, 241, 0.2);
-            border-radius: 10px;
-            font-size: 0.85rem;
-            color: var(--primary);
-            margin-bottom: 12px;
-            animation: fadeIn 0.3s ease-out;
-        }
-        .search-status .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(99, 102, 241, 0.3);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .search-sources {
-            margin-top: 12px;
-            padding-top: 10px;
-            border-top: 1px solid #e5e7eb;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-        }
-        .search-sources summary {
-            cursor: pointer;
-            color: var(--primary);
-            font-weight: 500;
-            margin-bottom: 6px;
-        }
-        .search-source-item {
-            padding: 4px 0;
-            line-height: 1.5;
-        }
-        .search-source-item .source-tag {
-            display: inline-block;
-            background: #f3f4f6;
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            margin-right: 4px;
-        }
         /* Mobile toggle */
         .sidebar-toggle {
             display: none;
@@ -1747,9 +1698,6 @@
                             <button class="action-btn" onclick="document.getElementById('fileInput').click()">
                                 📎 上传附件
                             </button>
-                            <button class="action-btn" id="searchToggle" onclick="toggleWebSearch()">
-                                🌐 联网搜索
-                            </button>
                             <button class="action-btn" id="voiceBtn" onclick="toggleVoiceInput()">
                                 🎤 语音输入
                             </button>
@@ -1838,8 +1786,7 @@
 - 鼓励式教学，耐心细致
 - 如果用户发送了图片，仔细分析图片内容并回答相关问题
 - 不确定的内容直接说"我不太确定"或"这个我不太了解"，不要编造虚假信息
-- 回答要简洁，不要重复相同的内容
-- 如果提供了搜索结果，优先基于搜索结果回答，并在回答末尾标注信息来源`;
+- 回答要简洁，不要重复相同的内容`;
 
         const FEYNMAN_PROMPT = `身份提醒：你是由 yyx 创作的"学习助手"，此刻在费曼模式中扮演一个好奇的同学。若被问到身份，仍回答由 yyx 创作的学习助手，不要说自己是通义千问或 Qwen。
 
@@ -1938,7 +1885,7 @@
             conv.isLoading = true;
 
             // 调用AI获取评估
-            callAI(conv, evalMsg, typingId, []).then(() => {
+            callAI(conv, evalMsg, typingId).then(() => {
                 conv.isLoading = false;
                 conv.mode = 'feynman_done';
                 // 评估完成后恢复原系统提示，方便继续普通提问
@@ -1978,22 +1925,6 @@
                 input.placeholder = '评估已完成，可以继续提问或新建对话...';
             } else {
                 input.placeholder = '输入你的问题，或粘贴图片...';
-            }
-        }
-
-        // ===== Web Search =====
-
-        let webSearchEnabled = false;
-
-        function toggleWebSearch() {
-            webSearchEnabled = !webSearchEnabled;
-            const btn = document.getElementById('searchToggle');
-            if (webSearchEnabled) {
-                btn.classList.add('active');
-                btn.textContent = ' 联网已开启';
-            } else {
-                btn.classList.remove('active');
-                btn.textContent = ' 联网搜索';
             }
         }
 
@@ -2213,188 +2144,6 @@
                 showVoiceResult('❌ ' + err.message, '可改用键盘自带语音输入');
                 hideOverlayLater(4000);
             }
-        }
-
-        // ===== 联网搜索（国内快路径：百度百科 JSONP 为主，不被慢源拖死）=====
-        function jsonp(url, callbackParam, timeoutMs = 4000) {
-            return new Promise((resolve) => {
-                // 回调名避免前导下划线，兼容部分接口校验
-                const cbName = 'bdcb' + Date.now() + Math.random().toString(36).slice(2, 8);
-                let done = false;
-                const finish = (val) => {
-                    if (done) return;
-                    done = true;
-                    try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-                    if (script && script.parentNode) script.parentNode.removeChild(script);
-                    clearTimeout(timer);
-                    resolve(val);
-                };
-                window[cbName] = (data) => finish(data);
-                const script = document.createElement('script');
-                const join = url.includes('?') ? '&' : '?';
-                script.src = url + join + callbackParam + '=' + encodeURIComponent(cbName);
-                script.async = true;
-                script.onerror = () => finish(null);
-                document.body.appendChild(script);
-                const timer = setTimeout(() => finish(null), timeoutMs);
-            });
-        }
-
-        function stripHtml(s) {
-            return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        }
-
-        function extractSearchSeed(text) {
-            let t = String(text || '').trim();
-            t = t.replace(/^>.*$/gm, '').trim();
-            t = t.replace(/^(谁是|什么是|请问|帮我查一下|帮我搜索|搜索一下|查一下)/, '');
-            t = t.replace(/(是谁|是什么|怎么样|如何|怎么回事)[？?！!。.\s]*$/g, '');
-            t = t.replace(/[？?！!。.\s]+$/g, '').trim();
-            if (!t) t = String(text || '').trim().slice(0, 40);
-            return t.slice(0, 40);
-        }
-
-        async function fetchBaiduSuggestions(query) {
-            try {
-                const data = await jsonp(
-                    'https://suggestion.baidu.com/su?wd=' + encodeURIComponent(query),
-                    'cb',
-                    3000
-                );
-                if (data && Array.isArray(data.s)) return data.s.filter(Boolean).slice(0, 8);
-            } catch (e) { /* ignore */ }
-            return [];
-        }
-
-        // 百度百科词条（JSONP，国内可直连）
-        async function fetchBaiduBaike(keyword) {
-            if (!keyword) return [];
-            try {
-                const data = await jsonp(
-                    'https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=' +
-                    encodeURIComponent(keyword) + '&bk_length=600',
-                    'callback',
-                    4000
-                );
-                if (!data || !(data.key || data.title || data.abstract || data.desc)) return [];
-                const lines = [];
-                if (data.title) lines.push('标准名：' + data.title);
-                if (data.key && data.key !== data.title) lines.push('词条名：' + data.key);
-                if (data.desc) lines.push('简述：' + stripHtml(data.desc));
-                if (Array.isArray(data.card)) {
-                    data.card.slice(0, 12).forEach(c => {
-                        const val = Array.isArray(c.value)
-                            ? c.value.map(v => stripHtml(v)).filter(Boolean).join('、')
-                            : stripHtml(c.value);
-                        if (c.name && val) lines.push(c.name + '：' + val);
-                    });
-                }
-                if (data.abstract) lines.push('简介：' + stripHtml(data.abstract).slice(0, 500));
-                const title = (data.title || data.key || keyword) + ' - 百度百科';
-                return [{
-                    title: title,
-                    snippet: lines.join('\n') || stripHtml(data.abstract || data.desc || title),
-                    url: data.url || ('https://baike.baidu.com/item/' + encodeURIComponent(data.key || keyword)),
-                    source: '百度百科'
-                }];
-            } catch (e) {
-                console.log('百度百科失败:', keyword, e);
-                return [];
-            }
-        }
-
-        function dedupeSearchResults(allResults) {
-            const seen = new Set();
-            const unique = [];
-            for (const r of allResults) {
-                if (!r || !r.title) continue;
-                const key = (r.source + '|' + r.title).replace(/\s+/g, '').slice(0, 60);
-                if (seen.has(key)) continue;
-                seen.add(key);
-                unique.push(r);
-            }
-            unique.sort((a, b) => {
-                const sa = a.source === '百度百科' ? 1000 : 0;
-                const sb = b.source === '百度百科' ? 1000 : 0;
-                return (sb + (b.snippet || '').length) - (sa + (a.snippet || '').length);
-            });
-            return unique.slice(0, 8);
-        }
-
-        async function performWebSearch(question) {
-            const seed = extractSearchSeed(question);
-            console.log('联网搜索关键词:', seed);
-
-            // 1) 先并行：百科主词 + 百度联想（不依赖海外代理）
-            const [baikeMain, suggestions] = await Promise.all([
-                fetchBaiduBaike(seed),
-                fetchBaiduSuggestions(seed)
-            ]);
-
-            let allResults = baikeMain.slice();
-
-            // 2) 若主词未命中，用联想词再查 1~2 个百科（仍然很快）
-            if (!allResults.length && suggestions.length) {
-                const extraKeys = [];
-                suggestions.slice(0, 4).forEach(s => {
-                    const t = String(s || '').trim();
-                    if (!t) return;
-                    // 「钎城王者荣耀」这类联想，优先截取更像词条的前缀
-                    if (t.indexOf(seed) === 0) extraKeys.push(seed);
-                    else extraKeys.push(t.slice(0, 12));
-                });
-                const uniq = [...new Set(extraKeys)].filter(k => k && k !== seed).slice(0, 2);
-                if (uniq.length) {
-                    const more = await Promise.all(uniq.map(k => fetchBaiduBaike(k)));
-                    more.forEach(arr => { allResults = allResults.concat(arr); });
-                }
-            }
-
-            // 3) 联想线索始终带上（即使百科为空，也给模型领域提示）
-            if (suggestions.length) {
-                allResults.push({
-                    title: '相关搜索联想',
-                    snippet: '与「' + seed + '」相关的热门搜索：' + suggestions.slice(0, 8).join('；'),
-                    url: 'https://www.baidu.com/s?wd=' + encodeURIComponent(seed),
-                    source: '百度联想'
-                });
-            }
-
-            // 4) 常见错别字兜底（钉城/钎城）
-            if (!allResults.some(r => r.source === '百度百科')) {
-                const aliases = [];
-                if (seed === '钉城' || seed === '钉子') aliases.push('钎城');
-                if (seed === '钎城') aliases.push('周诣涛');
-                for (const a of aliases) {
-                    const hit = await fetchBaiduBaike(a);
-                    if (hit.length) {
-                        allResults = hit.concat(allResults);
-                        break;
-                    }
-                }
-            }
-
-            const finalResults = dedupeSearchResults(allResults);
-            console.log('联网搜索命中:', finalResults.length, finalResults.map(r => r.source + ':' + r.title));
-            return finalResults;
-        }
-
-        function formatSearchResultsForAI(results, query) {
-            if (!results.length) return '';
-            let text = '【联网搜索模式·国内资料】下面是刚从百度百科等检索到的资料，请据此回答。\n';
-            text += '要求：\n';
-            text += '1. 优先使用下列资料中的事实（姓名、身份、战队/公司、时间、成就等）整合成清楚可靠的答案；\n';
-            text += '2. 资料已写明的关键信息，不要说“不知道”；\n';
-            text += '3. 资料不足时只写有依据的部分，并标明不确定；不要编造；\n';
-            text += '4. 文末用条目列出主要信息来源（如百度百科）。\n\n';
-            text += '用户问题：' + query + '\n\n联网资料：\n\n';
-            results.forEach((r, i) => {
-                text += '【' + (i + 1) + '】' + r.title;
-                if (r.snippet) text += '\n' + r.snippet;
-                if (r.url) text += '\n链接：' + r.url;
-                text += '\n来源：' + r.source + '\n\n';
-            });
-            return text;
         }
 
         let conversations = {};
@@ -2656,10 +2405,10 @@
                 if (Array.isArray(msg.content)) {
                     const text = msg.displayText !== undefined ? msg.displayText : (msg.content.find(c => c.type === 'text')?.text || '');
                     const images = msg.content.filter(c => c.type === 'image_url').map(c => c.image_url?.url);
-                    addMessage(msg.role === 'user' ? 'user' : 'ai', text, images, false, [], msg.attachedFiles || [], msg.annotations || [], renderIdx);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', text, images, false, msg.attachedFiles || [], msg.annotations || [], renderIdx);
                 } else {
                     const plainText = msg.displayText !== undefined ? msg.displayText : msg.content;
-                    addMessage(msg.role === 'user' ? 'user' : 'ai', plainText, [], false, [], msg.attachedFiles || [], msg.annotations || [], renderIdx);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', plainText, [], false, msg.attachedFiles || [], msg.annotations || [], renderIdx);
                 }
                 renderIdx++;
             });
@@ -2984,7 +2733,7 @@
 
             // Display user message（气泡中只显示问题与附件标记）
             const attachedMeta = pending.map(f => ({ name: f.name, size: f.size }));
-            addMessage('user', displayText, images.map(i => i.dataUrl), true, [], attachedMeta);
+            addMessage('user', displayText, images.map(i => i.dataUrl), true, attachedMeta);
             
             // Save to conversation
             conv.messages.push({ role: 'user', content: content, displayText: displayText, attachedFiles: attachedMeta });
@@ -3025,171 +2774,9 @@
             saveConversations();
 
             const typingId = showTyping();
-            let searchResults = [];
 
             try {
-                // 如果联网搜索已开启且非费曼模式，先搜索再回答
-                const isFeynmanMode = conv.mode === 'feynman' || conv.mode === 'feynman_done';
-                if (webSearchEnabled && text && !isFeynmanMode) {
-                    const searchStatusId = showSearchStatus('正在联网搜索：' + text);
-                    
-                    // 国内快路径：内部已有短超时，这里只做兜底，避免再把已有结果扔掉
-                    try {
-                        searchResults = await performWebSearch(text);
-                    } catch (searchError) {
-                        console.log('搜索失败:', searchError);
-                        searchResults = [];
-                    }
-                    removeSearchStatus(searchStatusId);
-                    
-                    const solidResults = searchResults.filter(r =>
-                        r.source === '百度百科' && (r.snippet || '').trim().length >= 10
-                    );
-                    
-                    if (searchResults.length > 0) {
-                        const searchContext = formatSearchResultsForAI(searchResults, text);
-                        const statusId2 = showSearchStatus(
-                            solidResults.length
-                                ? `已找到百科资料，正在整合分析...`
-                                : `已获得搜索线索，正在整合分析...`
-                        );
-                        
-                        // 不污染会话历史：仅构造本次 API 消息
-                        const history = conv.messages.slice(0, -1); // 去掉刚写入的用户消息，改用带资料的提问
-                        const apiMessages = history.concat([
-                            {
-                                role: 'user',
-                                content: Array.isArray(content)
-                                    ? content.map(part => {
-                                        if (part.type === 'text') {
-                                            return { type: 'text', text: searchContext + '\n\n用户原话：' + (part.text || text) };
-                                        }
-                                        return part;
-                                    })
-                                    : (searchContext + '\n\n用户原话：' + text)
-                            }
-                        ]);
-
-                        const searchController = new AbortController();
-                        const searchTimeoutId = setTimeout(() => searchController.abort(), 90000);
-                        let streamIdleTimer = null;
-                        const kickStreamIdle = () => {
-                            clearTimeout(streamIdleTimer);
-                            streamIdleTimer = setTimeout(() => searchController.abort(), 90000);
-                        };
-
-                        const response = await fetch(API_URL, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${API_KEY}`
-                            },
-                            body: JSON.stringify({
-                                model: 'Qwen/Qwen3-VL-30B-A3B-Instruct',
-                                messages: apiMessages,
-                                temperature: 0.4,
-                                max_tokens: 2000,
-                                stream: true
-                            }),
-                            signal: searchController.signal
-                        });
-
-                        clearTimeout(searchTimeoutId);
-                        removeSearchStatus(statusId2);
-                        removeTyping(typingId);
-
-                        if (!response.ok) {
-                            const errorData = await response.json().catch(() => ({}));
-                            throw new Error(errorData.message || `API 错误：${response.status}`);
-                        }
-
-                        // 流式读取搜索结果回复
-                        const bubble = createStreamingBubble();
-                        let fullReply = '';
-                        let streamAborted = false;
-                        const reader = response.body.getReader();
-                        const decoder = new TextDecoder();
-                        let buffer = '';
-                        let lastRender = 0;
-
-                        try {
-                            while (true) {
-                                const { done, value } = await reader.read();
-                                if (done) break;
-                                kickStreamIdle();
-
-                                buffer += decoder.decode(value, { stream: true });
-                                const lines = buffer.split('\n');
-                                buffer = lines.pop();
-
-                                for (const line of lines) {
-                                    const trimmed = line.trim();
-                                    if (!trimmed || !trimmed.startsWith('data: ')) continue;
-                                    const data = trimmed.slice(6);
-                                    if (data === '[DONE]') continue;
-
-                                    try {
-                                        const json = JSON.parse(data);
-                                        const delta = json.choices?.[0]?.delta?.content;
-                                        if (delta) {
-                                            fullReply += delta;
-                                            const now = Date.now();
-                                            if (now - lastRender > 100) {
-                                                bubble.innerHTML = formatMessage(fullReply) + '<span class="streaming-cursor">▊</span>';
-                                                const container = document.getElementById('chatContainer');
-                                                container.scrollTop = container.scrollHeight;
-                                                lastRender = now;
-                                            }
-                                        }
-                                    } catch (e) { /* 忽略解析错误 */ }
-                                }
-                            }
-                        } catch (streamErr) {
-                            // 超时但已有部分内容：保留已生成部分
-                            if (streamErr && streamErr.name === 'AbortError' && fullReply) {
-                                streamAborted = true;
-                            } else {
-                                throw streamErr;
-                            }
-                        } finally {
-                            clearTimeout(streamIdleTimer);
-                        }
-
-                        // 最终渲染
-                        bubble.innerHTML = formatMessage(fullReply) + (streamAborted ? '<div class="stream-note">⏱️ 回复较长，已在此处中断。发送「继续」可以让我接着讲。</div>' : '');
-                        // 添加搜索来源
-                        let sourcesHtml = '<div class="search-sources"><details><summary>📋 信息来源（' + searchResults.length + ' 条）</summary>';
-                        searchResults.forEach(r => {
-                            sourcesHtml += `<div class="search-source-item"><span class="source-tag">${escapeHtml(r.source)}</span>${escapeHtml(r.title)}</div>`;
-                        });
-                        sourcesHtml += '</details></div>';
-                        bubble.innerHTML += sourcesHtml;
-                        attachMsgActions(bubble);
-                        enhanceCodeBlocks(bubble);
-
-                        const chatContainer = document.getElementById('chatContainer');
-                        chatContainer.scrollTop = chatContainer.scrollHeight;
-
-                        conv.messages.push({ role: 'assistant', content: fullReply });
-                        bindBubbleMsgIndex(bubble);
-                        conv.updatedAt = Date.now();
-                        saveConversations();
-                    } else {
-                        const statusId2 = showSearchStatus('⚠️ 未检索到网页资料，改用模型知识作答');
-                        await new Promise(r => setTimeout(r, 800));
-                        removeSearchStatus(statusId2);
-                        addMessage('ai', '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。');
-                        conv.messages.push({
-                            role: 'assistant',
-                            content: '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。'
-                        });
-                        await callAI(conv, content, typingId, []);
-                    }
-                } else {
-                    // 未开启联网搜索，正常调用AI
-                    await callAI(conv, content, typingId, []);
-                }
-
+                await callAI(conv, content, typingId);
             } catch (error) {
                 removeTyping(typingId);
                 if (error && error.name === 'AbortError') {
@@ -3225,7 +2812,7 @@
         }
 
         // 流式AI调用函数（逐字输出，带空闲超时保护）
-        async function callAI(conv, content, typingId, searchResults) {
+        async function callAI(conv, content, typingId) {
             const controller = new AbortController();
             // 空闲超时：90秒内没有任何新内容才中断；只要持续输出就不会被截断
             const IDLE_LIMIT = 90000;
@@ -3303,15 +2890,6 @@
 
                 // 最终渲染（去掉光标）
                 bubble.innerHTML = formatMessage(fullReply);
-                // 添加搜索来源
-                if (searchResults && searchResults.length > 0) {
-                    let sourcesHtml = '<div class="search-sources"><details><summary>📋 信息来源（' + searchResults.length + ' 条）</summary>';
-                    searchResults.forEach(r => {
-                        sourcesHtml += `<div class="search-source-item"><span class="source-tag">${escapeHtml(r.source)}</span>${escapeHtml(r.title)}</div>`;
-                    });
-                    sourcesHtml += '</details></div>';
-                    bubble.innerHTML += sourcesHtml;
-                }
                 attachMsgActions(bubble);
                 enhanceCodeBlocks(bubble);
 
@@ -3342,7 +2920,7 @@
             }
         }
 
-        function addMessage(role, text, images, save = true, searchSources = [], attachedFiles = [], annotations = [], msgIndex) {
+        function addMessage(role, text, images, save = true, attachedFiles = [], annotations = [], msgIndex) {
             const container = document.getElementById('chatContainer');
             
             // Remove empty state if present
@@ -3380,15 +2958,6 @@
             }
             if (text) {
                 html += formatMessage(text);
-            }
-            // 添加搜索来源
-            if (searchSources && searchSources.length > 0) {
-                html += '<div class="search-sources">';
-                html += '<details><summary>📋 信息来源（' + searchSources.length + ' 条）</summary>';
-                searchSources.forEach(r => {
-                    html += `<div class="search-source-item"><span class="source-tag">${escapeHtml(r.source)}</span>${escapeHtml(r.title)}</div>`;
-                });
-                html += '</details></div>';
             }
             bubble.innerHTML = html;
             attachMsgActions(bubble, role === 'ai');
@@ -3654,7 +3223,7 @@
         function annotSkipNode(node) {
             const p = node.parentElement;
             if (!p) return true;
-            return !!p.closest('.annot-note, .annot-unit, .msg-actions, .code-copy-btn, .search-sources, script, style');
+            return !!p.closest('.annot-note, .annot-unit, .msg-actions, .code-copy-btn, script, style');
         }
         function collectBubbleTextMap(bubble) {
             const pieces = [];
@@ -3935,29 +3504,6 @@
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
             return div.id;
-        }
-
-        function showSearchStatus(text) {
-            const container = document.getElementById('chatContainer');
-            const div = document.createElement('div');
-            div.className = 'search-status';
-            div.id = 'search-status-' + Date.now();
-            div.innerHTML = `<div class="spinner"></div><span>${escapeHtml(text)}</span>`;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-            return div.id;
-        }
-
-        function removeSearchStatus(id) {
-            const el = document.getElementById(id);
-            if (el) el.remove();
-        }
-
-        function updateSearchStatus(id, text) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.querySelector('span').textContent = text;
-            }
         }
 
         function removeTyping(id) {
