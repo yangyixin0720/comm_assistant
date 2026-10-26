@@ -642,11 +642,15 @@
             line-height: 1.35;
             user-select: none;
             -webkit-user-select: none;
-            cursor: default;
+            cursor: pointer;
+            border-radius: 4px;
+            padding: 0 2px;
         }
+        .annot-note:hover { background: rgba(220,38,38,0.06); }
         .annot-note::before { content: "(批注："; }
         .annot-note-text::after { content: ")"; }
         .annot-del {
+            display: none;
             border: none;
             background: transparent;
             color: #dc2626;
@@ -655,8 +659,9 @@
             padding: 0 2px;
             cursor: pointer;
             border-radius: 4px;
-            opacity: 0.75;
+            opacity: 0.85;
         }
+        .annot-note:hover .annot-del { display: inline; }
         .annot-del:hover { opacity: 1; background: rgba(220,38,38,0.12); }
         /* 引用标注块（输入预览 + 消息气泡） */
         .quote-preview {
@@ -3565,8 +3570,23 @@
             if (sel) sel.removeAllRanges();
             if (t) quoteText(t);
         }
-        // ===== 批注（PC）：原文下划线，批注文字在下方，可删除，不可再批注；本地持久化 =====
+        // ===== 批注（PC）：原文下划线，批注文字在下方，可删除/修改，不可再批注；本地持久化 =====
+        let editingAnnotUnit = null;
+        function showAnnotPopAt(rect, initialValue) {
+            const pop = document.getElementById('annotPop');
+            if (!pop || !rect) return;
+            let left = Math.max(8, Math.min(rect.left, window.innerWidth - 268));
+            let top = rect.bottom + 8;
+            if (top + 96 > window.innerHeight) top = Math.max(8, rect.top - 100);
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+            pop.classList.add('show');
+            const inp = document.getElementById('annotInput');
+            inp.value = initialValue || '';
+            setTimeout(() => { inp.focus(); inp.select(); }, 20);
+        }
         function openAnnotPop() {
+            editingAnnotUnit = null;
             const pop = document.getElementById('annotPop');
             if (!pop || !selRange) return;
             if (selectionTouchesAnnotNote(selRange)) {
@@ -3575,21 +3595,21 @@
                 return;
             }
             hideQuoteFloat();
-            const rect = selRange.getBoundingClientRect();
-            let left = Math.max(8, Math.min(rect.left, window.innerWidth - 268));
-            let top = rect.bottom + 8;
-            if (top + 96 > window.innerHeight) top = Math.max(8, rect.top - 100);
-            pop.style.left = left + 'px';
-            pop.style.top = top + 'px';
-            pop.classList.add('show');
-            const inp = document.getElementById('annotInput');
-            inp.value = '';
-            setTimeout(() => inp.focus(), 20);
+            showAnnotPopAt(selRange.getBoundingClientRect(), '');
+        }
+        function openEditAnnotPop(noteEl) {
+            const unit = noteEl && noteEl.closest ? noteEl.closest('.annot-unit') : null;
+            if (!unit) return;
+            editingAnnotUnit = unit;
+            hideQuoteFloat();
+            const noteText = unit.querySelector('.annot-note-text');
+            showAnnotPopAt(noteEl.getBoundingClientRect(), noteText ? noteText.textContent : '');
         }
         function closeAnnotPop() {
             const pop = document.getElementById('annotPop');
             if (pop) pop.classList.remove('show');
             selRange = null;
+            editingAnnotUnit = null;
             const sel = window.getSelection();
             if (sel) sel.removeAllRanges();
         }
@@ -3640,6 +3660,15 @@
             }
             return count;
         }
+        function updatePersistedAnnotationNote(bubble, id, note) {
+            const msg = getMessageByBubble(bubble);
+            if (!msg || !Array.isArray(msg.annotations)) return;
+            const item = msg.annotations.find(a => a.id === id);
+            if (item) {
+                item.note = note;
+                saveConversations();
+            }
+        }
         function buildAnnotUnit(quoteHtmlHost, note, id) {
             const unit = document.createElement('span');
             unit.className = 'annot-unit';
@@ -3652,7 +3681,7 @@
             unit.appendChild(wrap);
             const noteEl = document.createElement('span');
             noteEl.className = 'annot-note';
-            noteEl.title = '批注：' + note;
+            noteEl.title = '点击修改批注';
             const noteText = document.createElement('span');
             noteText.className = 'annot-note-text';
             noteText.textContent = note;
@@ -3662,7 +3691,13 @@
             del.title = '删除批注';
             del.setAttribute('aria-label', '删除批注');
             del.textContent = '×';
-            del.onclick = (ev) => { ev.stopPropagation(); removeAnnotation(del); };
+            del.onclick = (ev) => { ev.preventDefault(); ev.stopPropagation(); removeAnnotation(del); };
+            noteEl.onclick = (ev) => {
+                if (ev.target && ev.target.closest && ev.target.closest('.annot-del')) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                openEditAnnotPop(noteEl);
+            };
             noteEl.appendChild(noteText);
             noteEl.appendChild(del);
             unit.appendChild(noteEl);
@@ -3740,8 +3775,26 @@
             const inp = document.getElementById('annotInput');
             const text = (inp ? inp.value : '').trim();
             const range = selRange;
+            const editing = editingAnnotUnit;
+            if (!text) {
+                showToast('请输入批注文字');
+                return;
+            }
+            // 修改已有批注
+            if (editing && editing.isConnected) {
+                const noteText = editing.querySelector('.annot-note-text');
+                const noteEl = editing.querySelector('.annot-note');
+                const bubble = editing.closest('.bubble');
+                const id = editing.dataset.annotId;
+                if (noteText) noteText.textContent = text;
+                if (noteEl) noteEl.title = '点击修改批注';
+                if (bubble && id) updatePersistedAnnotationNote(bubble, id, text);
+                closeAnnotPop();
+                showToast('已更新批注');
+                return;
+            }
             closeAnnotPop();
-            if (!text || !range) return;
+            if (!range) return;
             if (selectionTouchesAnnotNote(range)) {
                 showToast('批注文字不可再批注');
                 return;
