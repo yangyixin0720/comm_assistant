@@ -2215,156 +2215,419 @@
             }
         }
 
-        // 通过CORS代理获取内容
-        async function fetchWithProxy(url) {
+        // ===== 联网搜索：查询改写 + 多源并行 + 强制基于结果作答 =====
+        async function fetchWithProxy(url, timeoutMs = 8000) {
             const proxies = [
                 u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+                u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
                 u => `https://corsproxy.org/?${encodeURIComponent(u)}`,
+                u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
             ];
             for (const proxy of proxies) {
                 try {
-                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(4000) });
-                    if (resp.ok) return await resp.text();
-                } catch (e) { continue; }
+                    const resp = await fetch(proxy(url), { signal: AbortSignal.timeout(timeoutMs) });
+                    if (!resp.ok) continue;
+                    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+                    if (ct.includes('application/json')) {
+                        const data = await resp.json();
+                        if (typeof data === 'string') return data;
+                        if (data && typeof data.contents === 'string') return data.contents;
+                        if (data && typeof data.data === 'string') return data.data;
+                        return JSON.stringify(data);
+                    }
+                    return await resp.text();
+                } catch (e) { /* try next */ }
             }
             return null;
         }
 
-        // 直接调用DuckDuckGo即时答案API（原生支持CORS）
-        async function fetchDuckDuckGoInstant(query) {
+        function jsonp(url, callbackParam, timeoutMs = 4000) {
+            return new Promise((resolve) => {
+                const cbName = '_jsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+                let done = false;
+                const finish = (val) => {
+                    if (done) return;
+                    done = true;
+                    try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+                    if (script && script.parentNode) script.parentNode.removeChild(script);
+                    resolve(val);
+                };
+                window[cbName] = (data) => finish(data);
+                const script = document.createElement('script');
+                const join = url.includes('?') ? '&' : '?';
+                script.src = url + join + callbackParam + '=' + cbName;
+                script.onerror = () => finish(null);
+                document.body.appendChild(script);
+                setTimeout(() => finish(null), timeoutMs);
+            });
+        }
+
+        async function fetchBaiduSuggestions(query) {
             try {
-                const resp = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`, {
-                    signal: AbortSignal.timeout(4000)
+                const data = await jsonp(
+                    'https://suggestion.baidu.com/su?wd=' + encodeURIComponent(query),
+                    'cb',
+                    3500
+                );
+                if (data && Array.isArray(data.s)) return data.s.filter(Boolean).slice(0, 8);
+            } catch (e) { /* ignore */ }
+            return [];
+        }
+
+        function stripHtml(s) {
+            return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        function extractSearchSeed(text) {
+            let t = String(text || '').trim();
+            t = t.replace(/^>.*$/gm, '').trim();
+            t = t.replace(/^(谁是|什么是|请问|帮我查一下|帮我搜索|搜索一下|查一下)/, '');
+            t = t.replace(/(是谁|是什么|怎么样|如何|怎么回事)[？?！!。.\s]*$/g, '');
+            t = t.replace(/[？?！!。.\s]+$/g, '').trim();
+            if (!t) t = String(text || '').trim().slice(0, 40);
+            return t.slice(0, 60);
+        }
+
+        async function rewriteSearchQueries(question) {
+            const seed = extractSearchSeed(question);
+            const queries = [];
+            const pushQ = (q) => {
+                q = String(q || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+                if (q && !queries.includes(q)) queries.push(q);
+            };
+            pushQ(seed);
+            if (/是谁|谁是|哪位|什么人/.test(question)) {
+                pushQ(seed + ' 简介');
+                pushQ(seed + ' 选手');
+            }
+
+            // 百度联想优先（中文场景最稳）
+            let suggestions = [];
+            try {
+                suggestions = await fetchBaiduSuggestions(seed);
+                suggestions.slice(0, 6).forEach(pushQ);
+            } catch (e) { /* ignore */ }
+
+            // 再用小模型补 1-2 个检索词
+            try {
+                const resp = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + API_KEY
+                    },
+                    body: JSON.stringify({
+                        model: 'Qwen/Qwen2.5-7B-Instruct',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: '把用户问题改写成2个中文搜索词，每行一个，不要解释。示例：\n输入：钎城是谁\n输出：\n钎城 王者荣耀\n钎城 电竞选手'
+                            },
+                            {
+                                role: 'user',
+                                content: '问题：' + question + (suggestions.length ? ('\n参考联想：' + suggestions.slice(0, 5).join('、')) : '')
+                            }
+                        ],
+                        temperature: 0.1,
+                        max_tokens: 64,
+                        stream: false
+                    }),
+                    signal: AbortSignal.timeout(8000)
                 });
                 if (resp.ok) {
                     const data = await resp.json();
-                    const results = [];
-                    if (data.AbstractText) {
-                        results.push({ title: data.Heading || query, snippet: data.AbstractText, source: 'DuckDuckGo' });
-                    }
-                    if (data.RelatedTopics) {
-                        data.RelatedTopics.slice(0, 5).forEach(topic => {
-                            if (topic.Text && topic.FirstURL) {
-                                results.push({ title: topic.Text.substring(0, 80), snippet: topic.Text, source: 'DuckDuckGo' });
+                    const content = (((data.choices || [])[0] || {}).message || {}).content || '';
+                    content.split(/\n+/).map(l => l.replace(/^[\d\.\-\*\s]+/, '').trim()).filter(Boolean).slice(0, 3)
+                        .forEach(pushQ);
+                }
+            } catch (e) {
+                console.log('搜索词改写失败，使用原始词/联想:', e);
+            }
+            return { queries: queries.slice(0, 6), suggestions, seed };
+        }
+
+        async function fetchDuckDuckGoInstant(query) {
+            try {
+                const resp = await fetch(
+                    'https://api.duckduckgo.com/?q=' + encodeURIComponent(query) + '&format=json&no_html=1&skip_disambig=1',
+                    { signal: AbortSignal.timeout(5000) }
+                );
+                if (!resp.ok) return [];
+                const data = await resp.json();
+                const results = [];
+                if (data.AbstractText) {
+                    results.push({
+                        title: data.Heading || query,
+                        snippet: data.AbstractText,
+                        url: data.AbstractURL || '',
+                        source: 'DuckDuckGo'
+                    });
+                }
+                (data.RelatedTopics || []).slice(0, 6).forEach(topic => {
+                    if (topic.Text) {
+                        results.push({
+                            title: topic.Text.substring(0, 80),
+                            snippet: topic.Text,
+                            url: topic.FirstURL || '',
+                            source: 'DuckDuckGo'
+                        });
+                    } else if (topic.Topics) {
+                        topic.Topics.slice(0, 3).forEach(t => {
+                            if (t.Text) {
+                                results.push({
+                                    title: t.Text.substring(0, 80),
+                                    snippet: t.Text,
+                                    url: t.FirstURL || '',
+                                    source: 'DuckDuckGo'
+                                });
                             }
                         });
                     }
-                    return results;
-                }
-            } catch (e) { console.log('DuckDuckGo API失败:', e); }
-            return [];
-        }
-
-        // 直接调用维基百科API（原生支持CORS）
-        async function fetchWikipedia(query) {
-            try {
-                const resp = await fetch(`https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&format=json&origin=*`, {
-                    signal: AbortSignal.timeout(4000)
                 });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    if (data.query && data.query.search) {
-                        return data.query.search.map(item => ({
-                            title: item.title,
-                            snippet: item.snippet.replace(/<[^>]+>/g, ''),
-                            source: '维基百科'
-                        }));
-                    }
-                }
-            } catch (e) { console.log('维基百科API失败:', e); }
-            return [];
+                return results;
+            } catch (e) { return []; }
         }
 
-        // 解析百度搜索结果
-        function parseBaiduResults(html) {
+        function parseDDGLiteHtml(html) {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             const results = [];
-            const containers = doc.querySelectorAll('.c-container, .result, [class*="result"]');
-            containers.forEach(container => {
-                const titleEl = container.querySelector('h3, .t, [class*="title"]');
-                const snippetEl = container.querySelector('.c-abstract, [class*="abstract"], [class*="content"], .c-span-last');
-                if (titleEl) {
-                    const title = titleEl.textContent.trim();
-                    const snippet = snippetEl ? snippetEl.textContent.trim() : '';
-                    if (title && title.length > 2) {
-                        results.push({ title, snippet, source: '百度' });
-                    }
+            const links = doc.querySelectorAll('a.result-link, a.result__a');
+            links.forEach(a => {
+                const title = (a.textContent || '').trim();
+                if (!title || title.length < 2) return;
+                let snippet = '';
+                let tr = a.closest('tr');
+                if (tr && tr.nextElementSibling) {
+                    const sn = tr.nextElementSibling.querySelector('.result-snippet, td.result-snippet');
+                    if (sn) snippet = sn.textContent.trim();
                 }
+                if (!snippet) {
+                    const parent = a.closest('.result, article, li, div') || a.parentElement;
+                    const sn = parent ? parent.querySelector('.result-snippet, .result__snippet') : null;
+                    if (sn) snippet = sn.textContent.trim();
+                }
+                let url = a.getAttribute('href') || '';
+                const m = url.match(/[?&]uddg=([^&]+)/);
+                if (m) {
+                    try { url = decodeURIComponent(m[1]); } catch (e) { /* keep */ }
+                }
+                results.push({ title, snippet, url, source: '网页搜索' });
             });
-            return results.slice(0, 5);
+            // 兜底：按表格行解析 lite 布局
+            if (results.length === 0) {
+                doc.querySelectorAll('td.result-snippet').forEach(td => {
+                    const snippet = td.textContent.trim();
+                    let title = '';
+                    let tr = td.closest('tr');
+                    let prev = tr && tr.previousElementSibling;
+                    if (prev) {
+                        const a = prev.querySelector('a');
+                        if (a) title = a.textContent.trim();
+                    }
+                    if (title || snippet) {
+                        results.push({ title: title || snippet.slice(0, 40), snippet, url: '', source: '网页搜索' });
+                    }
+                });
+            }
+            return results.slice(0, 8);
         }
 
-        // 主搜索函数：多源搜索并整合结果
-        async function performWebSearch(query) {
-            let allResults = [];
+        async function fetchDDGLite(query) {
+            const url = 'https://lite.duckduckgo.com/lite/?q=' + encodeURIComponent(query) + '&kl=cn-zh';
+            // 先尝试代理抓取（浏览器直连会 CORS 失败）
+            const html = await fetchWithProxy(url, 10000);
+            if (!html || html.length < 200) return [];
+            if (!/result-snippet|result-link|result__/i.test(html) && !/uddg=/i.test(html)) return [];
+            return parseDDGLiteHtml(html);
+        }
 
-            // 1. 尝试DuckDuckGo即时答案API（直接调用，无需代理）
-            const ddgResults = await fetchDuckDuckGoInstant(query);
-            allResults = allResults.concat(ddgResults);
+        async function fetchBingRss(query) {
+            const url = 'https://www.bing.com/search?q=' + encodeURIComponent(query) + '&format=rss&setlang=zh-Hans';
+            const xmlText = await fetchWithProxy(url, 9000);
+            if (!xmlText || !xmlText.includes('<item>')) return [];
+            try {
+                const xml = new DOMParser().parseFromString(xmlText, 'text/xml');
+                return [...xml.querySelectorAll('item')].slice(0, 6).map(item => ({
+                    title: (item.querySelector('title') || {}).textContent || '',
+                    snippet: (item.querySelector('description') || {}).textContent || '',
+                    url: (item.querySelector('link') || {}).textContent || '',
+                    source: 'Bing'
+                })).filter(r => r.title);
+            } catch (e) { return []; }
+        }
 
-            // 2. 尝试维基百科API（直接调用，无需代理）
-            const wikiResults = await fetchWikipedia(query);
-            allResults = allResults.concat(wikiResults);
+        function clipAroundKeyword(text, keyword, radius = 120) {
+            if (!text) return '';
+            const idx = text.indexOf(keyword);
+            if (idx < 0) return text.slice(0, 360);
+            const start = Math.max(0, idx - radius);
+            const end = Math.min(text.length, idx + keyword.length + radius);
+            return (start > 0 ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : '');
+        }
 
-            // 3. 尝试通过CORS代理获取百度搜索
-            if (allResults.length === 0) {
-                try {
-                    const baiduUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}`;
-                    const baiduHtml = await fetchWithProxy(baiduUrl);
-                    if (baiduHtml) {
-                        const baiduResults = parseBaiduResults(baiduHtml);
-                        allResults = allResults.concat(baiduResults);
-                    }
-                } catch (e) { console.log('百度搜索失败:', e); }
-            }
+        async function fetchWikipedia(query, seed) {
+            const results = [];
+            const key = seed || extractSearchSeed(query);
+            try {
+                const searchResp = await fetch(
+                    'https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=' +
+                    encodeURIComponent(query) + '&srlimit=8&srprop=snippet&format=json&origin=*',
+                    { signal: AbortSignal.timeout(7000) }
+                );
+                if (!searchResp.ok) return [];
+                const searchData = await searchResp.json();
+                const hits = (((searchData.query || {}).search) || []);
+                if (!hits.length) return [];
 
-            // 4. 尝试通过CORS代理获取DuckDuckGo HTML搜索
-            if (allResults.length < 3) {
-                try {
-                    const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-                    const ddgHtml = await fetchWithProxy(ddgHtmlUrl);
-                    if (ddgHtml) {
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(ddgHtml, 'text/html');
-                        const items = doc.querySelectorAll('.result, .web-result, article');
-                        items.forEach(item => {
-                            const titleEl = item.querySelector('.result__title, .result__a, h2, h3');
-                            const snippetEl = item.querySelector('.result__snippet, .result__body');
-                            if (titleEl) {
-                                const title = titleEl.textContent.trim();
-                                const snippet = snippetEl ? snippetEl.textContent.trim() : '';
-                                if (title && title.length > 2) {
-                                    allResults.push({ title, snippet, source: 'DuckDuckGo' });
-                                }
-                            }
-                        });
-                    }
-                } catch (e) { console.log('DuckDuckGo HTML搜索失败:', e); }
-            }
+                hits.forEach(item => {
+                    const snip = stripHtml(item.snippet);
+                    results.push({
+                        title: item.title,
+                        snippet: snip,
+                        url: 'https://zh.wikipedia.org/wiki/' + encodeURIComponent(item.title),
+                        source: '维基百科',
+                        _score: (snip.includes(key) ? 2 : 0) + (snip.length > 40 ? 1 : 0)
+                    });
+                });
 
-            // 去重（按标题前20字符）
+                // 深挖：拉前 4 条正文，截取含关键词的片段（人物词条常藏在赛事名单里）
+                const titles = hits.slice(0, 4).map(h => h.title).join('|');
+                const extResp = await fetch(
+                    'https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&exchars=2500&titles=' +
+                    encodeURIComponent(titles) + '&format=json&origin=*',
+                    { signal: AbortSignal.timeout(9000) }
+                );
+                if (extResp.ok) {
+                    const extData = await extResp.json();
+                    const pages = Object.values(((extData.query || {}).pages) || {});
+                    pages.forEach(p => {
+                        if (!p || p.missing != null || !p.extract) return;
+                        if (key && p.extract.indexOf(key) >= 0) {
+                            results.push({
+                                title: p.title + '（正文提及）',
+                                snippet: clipAroundKeyword(p.extract, key, 140),
+                                url: 'https://zh.wikipedia.org/wiki/' + encodeURIComponent(p.title),
+                                source: '维基百科',
+                                _score: 5
+                            });
+                        } else if (p.extract.length > 60) {
+                            results.push({
+                                title: p.title + '（摘要）',
+                                snippet: p.extract.slice(0, 400),
+                                url: 'https://zh.wikipedia.org/wiki/' + encodeURIComponent(p.title),
+                                source: '维基百科',
+                                _score: 1
+                            });
+                        }
+                    });
+                }
+            } catch (e) { console.log('维基百科搜索失败:', e); }
+            results.sort((a, b) => (b._score || 0) - (a._score || 0));
+            return results.map(r => ({
+                title: r.title,
+                snippet: r.snippet,
+                url: r.url,
+                source: r.source
+            }));
+        }
+
+        function dedupeSearchResults(allResults) {
             const seen = new Set();
             const unique = [];
             for (const r of allResults) {
-                const key = r.title.substring(0, 20);
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    unique.push(r);
-                }
+                if (!r || !r.title) continue;
+                const key = (r.title + '|' + (r.snippet || '').slice(0, 40)).replace(/\s+/g, '').slice(0, 48);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                unique.push(r);
             }
-
-            return unique.slice(0, 10);
+            // 有正文摘要的优先
+            unique.sort((a, b) => (b.snippet || '').length - (a.snippet || '').length);
+            return unique.slice(0, 12);
         }
 
-        // 将搜索结果格式化为AI上下文本
+        async function inferDomainQueries(seed) {
+            const extra = [];
+            try {
+                const resp = await fetch(
+                    'https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=' +
+                    encodeURIComponent(seed) + '&srlimit=8&format=json&origin=*',
+                    { signal: AbortSignal.timeout(5000) }
+                );
+                if (!resp.ok) return extra;
+                const data = await resp.json();
+                const blob = ((((data.query || {}).search) || []).map(h => h.title + ' ' + stripHtml(h.snippet || '')).join(' '));
+                if (/王者荣耀|KPL|电竞|英雄联盟|DOTA/.test(blob)) {
+                    extra.push(seed + ' 王者荣耀');
+                    extra.push(seed + ' 电竞 选手');
+                }
+                if (/演员|电影|电视剧|明星/.test(blob)) extra.push(seed + ' 演员');
+                if (/歌手|音乐|专辑/.test(blob)) extra.push(seed + ' 歌手');
+                if (/企业|公司|董事长|CEO/.test(blob)) extra.push(seed + ' 企业家');
+            } catch (e) { /* ignore */ }
+            return extra;
+        }
+
+        async function performWebSearch(question) {
+            const { queries, suggestions, seed } = await rewriteSearchQueries(question);
+            const primary = seed || queries[0] || extractSearchSeed(question);
+            const domainQs = await inferDomainQueries(primary);
+            // 优先用含领域信息的扩词（如「钎城 王者荣耀」）做主检索
+            const ranked = queries.concat(domainQs).slice().sort((a, b) => b.length - a.length);
+            const secondary = [];
+            ranked.concat([primary]).forEach(q => {
+                if (q && !secondary.includes(q)) secondary.push(q);
+            });
+            const searchList = secondary.slice(0, 5);
+            console.log('联网搜索词:', searchList);
+
+            const tasks = [];
+            searchList.forEach((q, i) => {
+                tasks.push(fetchWikipedia(q, primary));
+                if (i < 2) tasks.push(fetchDuckDuckGoInstant(q));
+                if (i < 2) {
+                    tasks.push(fetchDDGLite(q));
+                    if (i === 0) tasks.push(fetchBingRss(q));
+                }
+            });
+
+            const settled = await Promise.allSettled(tasks);
+            let allResults = [];
+            settled.forEach(s => {
+                if (s.status === 'fulfilled' && Array.isArray(s.value)) {
+                    allResults = allResults.concat(s.value);
+                }
+            });
+
+            if (suggestions.length) {
+                allResults.unshift({
+                    title: '相关搜索联想',
+                    snippet: '与「' + primary + '」相关的热门搜索：' + suggestions.slice(0, 8).join('；') +
+                        '。请结合这些联想判断人物/事物所属领域，再对照下文资料作答。',
+                    url: '',
+                    source: '搜索联想'
+                });
+            }
+
+            return dedupeSearchResults(allResults);
+        }
+
         function formatSearchResultsForAI(results, query) {
-            if (results.length === 0) return '';
-            let text = `以下是关于"${query}"的联网搜索结果，请基于这些信息回答用户的问题，并在回答末尾标注信息来源：\n\n`;
+            if (!results.length) return '';
+            let text = '【联网搜索模式】下面是刚刚从互联网检索到的资料，请据此回答。\n';
+            text += '要求：\n';
+            text += '1. 必须优先使用下列资料中的事实（姓名、身份、战队/公司、时间、成就等），整合成清楚可靠的答案；\n';
+            text += '2. 如果资料里已经写明关键信息，不要说“不知道”；\n';
+            text += '3. 资料互相矛盾时说明分歧；资料不够时只写有依据的部分，并标明不确定；\n';
+            text += '4. 不要编造资料中没有的具体事实；\n';
+            text += '5. 文末用条目列出主要信息来源。\n\n';
+            text += '用户问题：' + query + '\n\n联网资料：\n\n';
             results.forEach((r, i) => {
-                text += `【${i + 1}】${r.title}`;
-                if (r.snippet) text += `\n${r.snippet}`;
-                text += ` (来源: ${r.source})\n\n`;
+                text += '【' + (i + 1) + '】' + r.title;
+                if (r.snippet) text += '\n' + r.snippet;
+                if (r.url) text += '\n链接：' + r.url;
+                text += '\n来源：' + r.source + '\n\n';
             });
             return text;
         }
@@ -3005,11 +3268,11 @@
                 if (webSearchEnabled && text && !isFeynmanMode) {
                     const searchStatusId = showSearchStatus('正在联网搜索：' + text);
                     
-                    // 给搜索加全局超时（15秒）
+                    // 给搜索加全局超时（25秒：含查询改写与多源并行）
                     try {
                         searchResults = await Promise.race([
                             performWebSearch(text),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('搜索超时')), 15000))
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('搜索超时')), 25000))
                         ]);
                     } catch (searchError) {
                         console.log('搜索超时或失败:', searchError);
@@ -3017,18 +3280,33 @@
                     }
                     removeSearchStatus(searchStatusId);
                     
+                    const solidResults = searchResults.filter(r =>
+                        r.source !== '搜索联想' && (r.snippet || '').trim().length >= 20
+                    );
+                    
                     if (searchResults.length > 0) {
                         const searchContext = formatSearchResultsForAI(searchResults, text);
-                        const statusId2 = showSearchStatus(`已找到 ${searchResults.length} 条相关信息，正在整合分析...`);
+                        const statusId2 = showSearchStatus(
+                            solidResults.length
+                                ? `已找到 ${solidResults.length} 条有效资料，正在整合分析...`
+                                : `已获得 ${searchResults.length} 条线索，正在整合分析...`
+                        );
                         
-                        // 记录当前消息数量，方便之后清理临时上下文
-                        const msgCountBeforeSearch = conv.messages.length;
-                        
-                        // 临时注入搜索上下文（仅用于本次API调用）
-                        conv.messages.push({ role: 'user', content: '[联网搜索结果]\n' + searchContext });
-                        conv.messages.push({ role: 'assistant', content: '好的，我已获取到搜索结果，正在整理答案...' });
-                        // 再次加入用户原始消息，让AI基于上下文回答
-                        conv.messages.push({ role: 'user', content: content });
+                        // 不污染会话历史：仅构造本次 API 消息
+                        const history = conv.messages.slice(0, -1); // 去掉刚写入的用户消息，改用带资料的提问
+                        const apiMessages = history.concat([
+                            {
+                                role: 'user',
+                                content: Array.isArray(content)
+                                    ? content.map(part => {
+                                        if (part.type === 'text') {
+                                            return { type: 'text', text: searchContext + '\n\n用户原话：' + (part.text || text) };
+                                        }
+                                        return part;
+                                    })
+                                    : (searchContext + '\n\n用户原话：' + text)
+                            }
+                        ]);
 
                         const searchController = new AbortController();
                         const searchTimeoutId = setTimeout(() => searchController.abort(), 90000);
@@ -3046,8 +3324,8 @@
                             },
                             body: JSON.stringify({
                                 model: 'Qwen/Qwen3-VL-30B-A3B-Instruct',
-                                messages: conv.messages,
-                                temperature: 0.7,
+                                messages: apiMessages,
+                                temperature: 0.4,
                                 max_tokens: 2000,
                                 stream: true
                             }),
@@ -3130,21 +3408,18 @@
                         const chatContainer = document.getElementById('chatContainer');
                         chatContainer.scrollTop = chatContainer.scrollHeight;
 
-                        // 清理临时搜索上下文：截断到搜索前的消息数
-                        conv.messages.length = msgCountBeforeSearch;
-                        // 添加正式的AI回复
                         conv.messages.push({ role: 'assistant', content: fullReply });
                         bindBubbleMsgIndex(bubble);
                         conv.updatedAt = Date.now();
                         saveConversations();
                     } else {
-                        // 搜索无结果，明确告知用户
                         const statusId2 = showSearchStatus('⚠️ 联网搜索未获取到结果，将基于AI自身知识回答（可能不准确）');
-                        await new Promise(r => setTimeout(r, 1500));
+                        await new Promise(r => setTimeout(r, 1200));
                         removeSearchStatus(statusId2);
-                        
-                        // 添加警告消息到对话
-                        conv.messages.push({ role: 'assistant', content: '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。' });
+                        conv.messages.push({
+                            role: 'assistant',
+                            content: '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。'
+                        });
                         await callAI(conv, content, typingId, []);
                     }
                 } else {
