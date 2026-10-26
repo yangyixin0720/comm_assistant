@@ -516,6 +516,15 @@
             color: var(--primary);
             font-weight: 600;
         }
+        /* 用户气泡文字用 on-primary；加粗/标题若再用 primary 会与气泡背景同色而看不见 */
+        .message.user .bubble strong,
+        .message.user .bubble h3 {
+            color: inherit;
+        }
+        .message.user .bubble code {
+            background: rgba(255,255,255,0.18);
+            color: inherit;
+        }
         .bubble img {
             max-width: 100%;
             border-radius: 8px;
