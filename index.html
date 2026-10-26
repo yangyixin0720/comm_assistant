@@ -2614,6 +2614,7 @@
             
             container.innerHTML = '';
 
+            let renderIdx = 0;
             msgs.forEach(msg => {
                 // 跳过费曼模式的内部评估指令
                 if (msg.content === '[请给出最终评估]') return;
@@ -2622,13 +2623,43 @@
                 if (Array.isArray(msg.content)) {
                     const text = msg.displayText !== undefined ? msg.displayText : (msg.content.find(c => c.type === 'text')?.text || '');
                     const images = msg.content.filter(c => c.type === 'image_url').map(c => c.image_url?.url);
-                    addMessage(msg.role === 'user' ? 'user' : 'ai', text, images, false, [], msg.attachedFiles || []);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', text, images, false, [], msg.attachedFiles || [], msg.annotations || [], renderIdx);
                 } else {
                     const plainText = msg.displayText !== undefined ? msg.displayText : msg.content;
-                    addMessage(msg.role === 'user' ? 'user' : 'ai', plainText, [], false, [], msg.attachedFiles || []);
+                    addMessage(msg.role === 'user' ? 'user' : 'ai', plainText, [], false, [], msg.attachedFiles || [], msg.annotations || [], renderIdx);
                 }
+                renderIdx++;
             });
             container.scrollTop = container.scrollHeight;
+        }
+
+        function getRenderableMessages() {
+            const conv = getCurrentConversation();
+            if (!conv || !conv.messages) return [];
+            return conv.messages.filter(m => m.role !== 'system' && m.content !== '[请给出最终评估]');
+        }
+
+        function getMessageByBubble(bubble) {
+            const msgEl = bubble && bubble.closest ? bubble.closest('.message') : null;
+            if (!msgEl) return null;
+            let i = parseInt(msgEl.dataset.msgI, 10);
+            if (Number.isNaN(i)) {
+                // 流式气泡可能尚未绑定：按 DOM 顺序回退匹配
+                const all = [...document.querySelectorAll('#chatContainer > .message')];
+                i = all.indexOf(msgEl);
+                if (i >= 0) msgEl.dataset.msgI = String(i);
+            }
+            if (Number.isNaN(i) || i < 0) return null;
+            const list = getRenderableMessages();
+            return list[i] || null;
+        }
+
+        function bindBubbleMsgIndex(bubble) {
+            const msgEl = bubble && bubble.closest ? bubble.closest('.message') : null;
+            if (!msgEl) return;
+            const list = getRenderableMessages();
+            msgEl.dataset.msgI = String(Math.max(0, list.length - 1));
+            msgEl.removeAttribute('id'); // 去掉 typing- 临时 id
         }
 
         function formatTime(timestamp) {
@@ -3098,6 +3129,7 @@
                         conv.messages.length = msgCountBeforeSearch;
                         // 添加正式的AI回复
                         conv.messages.push({ role: 'assistant', content: fullReply });
+                        bindBubbleMsgIndex(bubble);
                         conv.updatedAt = Date.now();
                         saveConversations();
                     } else {
@@ -3244,6 +3276,7 @@
                 container.scrollTop = container.scrollHeight;
 
                 conv.messages.push({ role: 'assistant', content: fullReply });
+                bindBubbleMsgIndex(bubble);
                 conv.updatedAt = Date.now();
                 saveConversations();
             } catch (err) {
@@ -3255,6 +3288,7 @@
                         enhanceCodeBlocks(bubble);
                     }
                     conv.messages.push({ role: 'assistant', content: fullReply });
+                    if (bubble) bindBubbleMsgIndex(bubble);
                     conv.updatedAt = Date.now();
                     saveConversations();
                     return;
@@ -3265,7 +3299,7 @@
             }
         }
 
-        function addMessage(role, text, images, save = true, searchSources = [], attachedFiles = []) {
+        function addMessage(role, text, images, save = true, searchSources = [], attachedFiles = [], annotations = [], msgIndex) {
             const container = document.getElementById('chatContainer');
             
             // Remove empty state if present
@@ -3274,6 +3308,10 @@
             
             const div = document.createElement('div');
             div.className = `message ${role}`;
+            const idx = (msgIndex === undefined || msgIndex === null)
+                ? getRenderableMessages().length
+                : msgIndex;
+            div.dataset.msgI = String(idx);
 
             const avatar = document.createElement('div');
             avatar.className = 'avatar';
@@ -3312,6 +3350,7 @@
             bubble.innerHTML = html;
             attachMsgActions(bubble, role === 'ai');
             enhanceCodeBlocks(bubble);
+            restoreAnnotations(bubble, annotations);
 
             div.appendChild(avatar);
             div.appendChild(bubble);
@@ -3526,7 +3565,7 @@
             if (sel) sel.removeAllRanges();
             if (t) quoteText(t);
         }
-        // ===== 批注（PC）：原文下划线，批注文字在下方，可删除，不可再批注 =====
+        // ===== 批注（PC）：原文下划线，批注文字在下方，可删除，不可再批注；本地持久化 =====
         function openAnnotPop() {
             const pop = document.getElementById('annotPop');
             if (!pop || !selRange) return;
@@ -3554,6 +3593,149 @@
             const sel = window.getSelection();
             if (sel) sel.removeAllRanges();
         }
+        function annotSkipNode(node) {
+            const p = node.parentElement;
+            if (!p) return true;
+            return !!p.closest('.annot-note, .annot-unit, .msg-actions, .code-copy-btn, .search-sources, script, style');
+        }
+        function collectBubbleTextMap(bubble) {
+            const pieces = [];
+            let full = '';
+            const walker = document.createTreeWalker(bubble, NodeFilter.SHOW_TEXT, {
+                acceptNode(node) {
+                    if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+                    if (annotSkipNode(node)) return NodeFilter.FILTER_REJECT;
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+            });
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const start = full.length;
+                full += node.nodeValue;
+                pieces.push({ node, start, end: full.length });
+            }
+            return { full, pieces };
+        }
+        function countQuoteOccurrenceBefore(bubble, quote, range) {
+            if (!quote) return 0;
+            const { full, pieces } = collectBubbleTextMap(bubble);
+            let abs = 0;
+            const startNode = range.startContainer;
+            const startOff = range.startOffset;
+            if (startNode.nodeType === 3) {
+                for (const p of pieces) {
+                    if (p.node === startNode) { abs = p.start + startOff; break; }
+                    abs = p.end;
+                }
+            } else {
+                abs = 0;
+            }
+            let count = 0;
+            let from = 0;
+            while (from < abs) {
+                const idx = full.indexOf(quote, from);
+                if (idx === -1 || idx >= abs) break;
+                count++;
+                from = idx + Math.max(1, quote.length);
+            }
+            return count;
+        }
+        function buildAnnotUnit(quoteHtmlHost, note, id) {
+            const unit = document.createElement('span');
+            unit.className = 'annot-unit';
+            unit.dataset.annotId = id;
+            const wrap = document.createElement('span');
+            wrap.className = 'annotated';
+            if (quoteHtmlHost) {
+                while (quoteHtmlHost.firstChild) wrap.appendChild(quoteHtmlHost.firstChild);
+            }
+            unit.appendChild(wrap);
+            const noteEl = document.createElement('span');
+            noteEl.className = 'annot-note';
+            noteEl.title = '批注：' + note;
+            const noteText = document.createElement('span');
+            noteText.className = 'annot-note-text';
+            noteText.textContent = note;
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'annot-del';
+            del.title = '删除批注';
+            del.setAttribute('aria-label', '删除批注');
+            del.textContent = '×';
+            del.onclick = (ev) => { ev.stopPropagation(); removeAnnotation(del); };
+            noteEl.appendChild(noteText);
+            noteEl.appendChild(del);
+            unit.appendChild(noteEl);
+            return unit;
+        }
+        function wrapRangeWithAnnotation(range, note, id) {
+            const host = document.createElement('span');
+            try {
+                range.surroundContents(host);
+            } catch (e) {
+                const frag = range.extractContents();
+                host.appendChild(frag);
+                range.insertNode(host);
+            }
+            const unit = buildAnnotUnit(host, note, id);
+            host.parentNode.insertBefore(unit, host);
+            host.parentNode.removeChild(host);
+            return unit;
+        }
+        function findQuoteRangeInBubble(bubble, quote, occurrence) {
+            if (!bubble || !quote) return null;
+            const { full, pieces } = collectBubbleTextMap(bubble);
+            let from = 0;
+            let idx = -1;
+            for (let i = 0; i <= occurrence; i++) {
+                idx = full.indexOf(quote, from);
+                if (idx === -1) return null;
+                from = idx + Math.max(1, quote.length);
+            }
+            const end = idx + quote.length;
+            let startNode = null, startOff = 0, endNode = null, endOff = 0;
+            for (const p of pieces) {
+                if (!startNode && idx >= p.start && idx < p.end) {
+                    startNode = p.node;
+                    startOff = idx - p.start;
+                }
+                if (end > p.start && end <= p.end) {
+                    endNode = p.node;
+                    endOff = end - p.start;
+                    break;
+                }
+            }
+            if (!startNode || !endNode) return null;
+            const range = document.createRange();
+            range.setStart(startNode, startOff);
+            range.setEnd(endNode, endOff);
+            return range;
+        }
+        function persistAnnotation(bubble, record) {
+            const msg = getMessageByBubble(bubble);
+            if (!msg) return;
+            if (!Array.isArray(msg.annotations)) msg.annotations = [];
+            msg.annotations.push(record);
+            saveConversations();
+        }
+        function unpersistAnnotation(bubble, id) {
+            const msg = getMessageByBubble(bubble);
+            if (!msg || !Array.isArray(msg.annotations)) return;
+            msg.annotations = msg.annotations.filter(a => a.id !== id);
+            saveConversations();
+        }
+        function restoreAnnotations(bubble, annotations) {
+            if (!bubble || !annotations || !annotations.length) return;
+            // 按保存顺序逐条还原；已批注区域会被跳过，因此每条都在剩余原文里取第 0 次匹配
+            annotations.forEach(a => {
+                if (!a || !a.quote || !a.note) return;
+                const range = findQuoteRangeInBubble(bubble, a.quote, 0);
+                if (!range) return;
+                try {
+                    wrapRangeWithAnnotation(range, a.note, a.id || ('restored_' + Math.random().toString(36).slice(2, 8)));
+                } catch (e) { /* 跳过无法还原的条目 */ }
+            });
+        }
         function applyAnnotation() {
             const inp = document.getElementById('annotInput');
             const text = (inp ? inp.value : '').trim();
@@ -3564,46 +3746,30 @@
                 showToast('批注文字不可再批注');
                 return;
             }
-            const unit = document.createElement('span');
-            unit.className = 'annot-unit';
-            const wrap = document.createElement('span');
-            wrap.className = 'annotated';
+            const bubble = (() => {
+                const n = range.commonAncestorContainer;
+                const el = n.nodeType === 1 ? n : n.parentElement;
+                return el && el.closest ? el.closest('.bubble') : null;
+            })();
+            if (!bubble) return;
+            const quote = range.toString();
+            if (!quote.trim()) return;
+            const occurrence = countQuoteOccurrenceBefore(bubble, quote, range);
+            const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
             try {
-                range.surroundContents(wrap);
-                wrap.parentNode.insertBefore(unit, wrap);
-                unit.appendChild(wrap);
-            } catch (e) {
-                try {
-                    const frag = range.extractContents();
-                    wrap.appendChild(frag);
-                    unit.appendChild(wrap);
-                    range.insertNode(unit);
-                } catch (e2) {
-                    showToast('选区跨多个段落，无法批注');
-                    return;
-                }
+                wrapRangeWithAnnotation(range, text, id);
+            } catch (e2) {
+                showToast('选区跨多个段落，无法批注');
+                return;
             }
-            const note = document.createElement('span');
-            note.className = 'annot-note';
-            note.title = '批注：' + text;
-            const noteText = document.createElement('span');
-            noteText.className = 'annot-note-text';
-            noteText.textContent = text;
-            const del = document.createElement('button');
-            del.type = 'button';
-            del.className = 'annot-del';
-            del.title = '删除批注';
-            del.setAttribute('aria-label', '删除批注');
-            del.textContent = '×';
-            del.onclick = (ev) => { ev.stopPropagation(); removeAnnotation(del); };
-            note.appendChild(noteText);
-            note.appendChild(del);
-            unit.appendChild(note);
+            persistAnnotation(bubble, { id, quote, note: text, occurrence });
             showToast('已添加批注');
         }
         function removeAnnotation(btn) {
             const unit = btn && btn.closest ? btn.closest('.annot-unit') : null;
             if (!unit) return;
+            const bubble = unit.closest('.bubble');
+            const id = unit.dataset.annotId;
             const wrap = unit.querySelector('.annotated');
             const parent = unit.parentNode;
             if (!parent) return;
@@ -3612,6 +3778,7 @@
             }
             parent.removeChild(unit);
             parent.normalize();
+            if (bubble && id) unpersistAnnotation(bubble, id);
             showToast('已删除批注');
         }
         function setupQuoteFloat() {
