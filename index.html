@@ -2215,11 +2215,11 @@
             }
         }
 
-        // ===== 联网搜索（国内源优先，追求快且可用）=====
-        // 主源：百度百科 OpenAPI（JSONP，国内可直连）+ 百度/360 联想
-        function jsonp(url, callbackParam, timeoutMs = 3500) {
+        // ===== 联网搜索（国内快路径：百度百科 JSONP 为主，不被慢源拖死）=====
+        function jsonp(url, callbackParam, timeoutMs = 4000) {
             return new Promise((resolve) => {
-                const cbName = '_jsonp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+                // 回调名避免前导下划线，兼容部分接口校验
+                const cbName = 'bdcb' + Date.now() + Math.random().toString(36).slice(2, 8);
                 let done = false;
                 const finish = (val) => {
                     if (done) return;
@@ -2232,7 +2232,8 @@
                 window[cbName] = (data) => finish(data);
                 const script = document.createElement('script');
                 const join = url.includes('?') ? '&' : '?';
-                script.src = url + join + callbackParam + '=' + cbName;
+                script.src = url + join + callbackParam + '=' + encodeURIComponent(cbName);
+                script.async = true;
                 script.onerror = () => finish(null);
                 document.body.appendChild(script);
                 const timer = setTimeout(() => finish(null), timeoutMs);
@@ -2258,29 +2259,14 @@
                 const data = await jsonp(
                     'https://suggestion.baidu.com/su?wd=' + encodeURIComponent(query),
                     'cb',
-                    2500
+                    3000
                 );
                 if (data && Array.isArray(data.s)) return data.s.filter(Boolean).slice(0, 8);
             } catch (e) { /* ignore */ }
             return [];
         }
 
-        async function fetch360Suggestions(query) {
-            try {
-                const resp = await fetch(
-                    'https://sug.so.360.cn/suggest?word=' + encodeURIComponent(query) + '&encodein=utf-8&encodeout=utf-8',
-                    { signal: AbortSignal.timeout(2500) }
-                );
-                if (!resp.ok) return [];
-                const data = await resp.json();
-                if (data && Array.isArray(data.result)) {
-                    return data.result.map(r => r.word).filter(Boolean).slice(0, 8);
-                }
-            } catch (e) { /* CORS 失败则忽略 */ }
-            return [];
-        }
-
-        // 百度百科词条卡片（JSONP，国内直连，人物/百科类最稳）
+        // 百度百科词条（JSONP，国内可直连）
         async function fetchBaiduBaike(keyword) {
             if (!keyword) return [];
             try {
@@ -2288,9 +2274,9 @@
                     'https://baike.baidu.com/api/openapi/BaikeLemmaCardApi?scope=103&format=json&appid=379020&bk_key=' +
                     encodeURIComponent(keyword) + '&bk_length=600',
                     'callback',
-                    3500
+                    4000
                 );
-                if (!data || !data.key) return [];
+                if (!data || !(data.key || data.title || data.abstract || data.desc)) return [];
                 const lines = [];
                 if (data.title) lines.push('标准名：' + data.title);
                 if (data.key && data.key !== data.title) lines.push('词条名：' + data.key);
@@ -2304,48 +2290,17 @@
                     });
                 }
                 if (data.abstract) lines.push('简介：' + stripHtml(data.abstract).slice(0, 500));
+                const title = (data.title || data.key || keyword) + ' - 百度百科';
                 return [{
-                    title: (data.title || data.key) + ' - 百度百科',
-                    snippet: lines.join('\n'),
-                    url: data.url || ('https://baike.baidu.com/item/' + encodeURIComponent(data.key)),
+                    title: title,
+                    snippet: lines.join('\n') || stripHtml(data.abstract || data.desc || title),
+                    url: data.url || ('https://baike.baidu.com/item/' + encodeURIComponent(data.key || keyword)),
                     source: '百度百科'
                 }];
             } catch (e) {
-                console.log('百度百科失败:', e);
+                console.log('百度百科失败:', keyword, e);
                 return [];
             }
-        }
-
-        // 必应中国 RSS（国内结果好，但浏览器常遇 CORS；短超时 + 国内友好代理试一次）
-        async function fetchBingChinaRss(query) {
-            const target = 'https://cn.bing.com/search?q=' + encodeURIComponent(query) + '&format=rss';
-            const proxies = [
-                'https://api.allorigins.win/raw?url=' + encodeURIComponent(target),
-                target // 个别环境可直连
-            ];
-            for (const url of proxies) {
-                try {
-                    const resp = await fetch(url, { signal: AbortSignal.timeout(3500) });
-                    if (!resp.ok) continue;
-                    let text = await resp.text();
-                    if (text.trim().startsWith('{')) {
-                        try {
-                            const j = JSON.parse(text);
-                            text = j.contents || j.data || text;
-                        } catch (e) { /* keep */ }
-                    }
-                    if (!text || text.indexOf('<item>') < 0) continue;
-                    const xml = new DOMParser().parseFromString(text, 'text/xml');
-                    const items = [...xml.querySelectorAll('item')].slice(0, 6).map(item => ({
-                        title: stripHtml((item.querySelector('title') || {}).textContent || ''),
-                        snippet: stripHtml((item.querySelector('description') || {}).textContent || ''),
-                        url: ((item.querySelector('link') || {}).textContent || '').trim(),
-                        source: '必应中国'
-                    })).filter(r => r.title && r.title.length > 1 && !/^响应于/.test(r.title));
-                    if (items.length) return items;
-                } catch (e) { /* next */ }
-            }
-            return [];
         }
 
         function dedupeSearchResults(allResults) {
@@ -2358,78 +2313,80 @@
                 seen.add(key);
                 unique.push(r);
             }
-            // 百科优先，其次长摘要
             unique.sort((a, b) => {
                 const sa = a.source === '百度百科' ? 1000 : 0;
                 const sb = b.source === '百度百科' ? 1000 : 0;
                 return (sb + (b.snippet || '').length) - (sa + (a.snippet || '').length);
             });
-            return unique.slice(0, 10);
+            return unique.slice(0, 8);
         }
 
         async function performWebSearch(question) {
             const seed = extractSearchSeed(question);
-            const keys = [];
-            const push = (k) => {
-                k = String(k || '').replace(/\s+/g, ' ').trim().slice(0, 40);
-                if (k && !keys.includes(k)) keys.push(k);
-            };
-            push(seed);
+            console.log('联网搜索关键词:', seed);
 
-            // 并行拉国内联想（很快）
-            const [baiduSug, soSug] = await Promise.all([
-                fetchBaiduSuggestions(seed),
-                fetch360Suggestions(seed)
+            // 1) 先并行：百科主词 + 百度联想（不依赖海外代理）
+            const [baikeMain, suggestions] = await Promise.all([
+                fetchBaiduBaike(seed),
+                fetchBaiduSuggestions(seed)
             ]);
-            const suggestions = [];
-            baiduSug.concat(soSug).forEach(s => {
-                if (s && !suggestions.includes(s)) suggestions.push(s);
-            });
-            // 用联想词再查百科（如「钎城王者荣耀」）
-            suggestions.slice(0, 3).forEach(s => {
-                // 过长联想截成前几个字当词条尝试
-                const short = String(s).replace(seed, seed).slice(0, 20);
-                push(short);
-                if (s.indexOf(seed) === 0 && s.length > seed.length) push(seed);
-            });
-            push(seed);
 
-            const baikeKeys = keys.slice(0, 3);
-            console.log('国内搜索词:', baikeKeys);
+            let allResults = baikeMain.slice();
 
-            // 并行：百科词条（主）+ 必应中国（辅，短超时）
-            const tasks = baikeKeys.map(k => fetchBaiduBaike(k));
-            tasks.push(fetchBingChinaRss(seed));
-            if (suggestions[0]) tasks.push(fetchBingChinaRss(suggestions[0]));
-
-            const settled = await Promise.allSettled(tasks);
-            let allResults = [];
-            settled.forEach(s => {
-                if (s.status === 'fulfilled' && Array.isArray(s.value)) {
-                    allResults = allResults.concat(s.value);
+            // 2) 若主词未命中，用联想词再查 1~2 个百科（仍然很快）
+            if (!allResults.length && suggestions.length) {
+                const extraKeys = [];
+                suggestions.slice(0, 4).forEach(s => {
+                    const t = String(s || '').trim();
+                    if (!t) return;
+                    // 「钎城王者荣耀」这类联想，优先截取更像词条的前缀
+                    if (t.indexOf(seed) === 0) extraKeys.push(seed);
+                    else extraKeys.push(t.slice(0, 12));
+                });
+                const uniq = [...new Set(extraKeys)].filter(k => k && k !== seed).slice(0, 2);
+                if (uniq.length) {
+                    const more = await Promise.all(uniq.map(k => fetchBaiduBaike(k)));
+                    more.forEach(arr => { allResults = allResults.concat(arr); });
                 }
-            });
+            }
 
+            // 3) 联想线索始终带上（即使百科为空，也给模型领域提示）
             if (suggestions.length) {
                 allResults.push({
                     title: '相关搜索联想',
                     snippet: '与「' + seed + '」相关的热门搜索：' + suggestions.slice(0, 8).join('；'),
                     url: 'https://www.baidu.com/s?wd=' + encodeURIComponent(seed),
-                    source: '百度/360联想'
+                    source: '百度联想'
                 });
             }
 
-            return dedupeSearchResults(allResults);
+            // 4) 常见错别字兜底（钉城/钎城）
+            if (!allResults.some(r => r.source === '百度百科')) {
+                const aliases = [];
+                if (seed === '钉城' || seed === '钉子') aliases.push('钎城');
+                if (seed === '钎城') aliases.push('周诣涛');
+                for (const a of aliases) {
+                    const hit = await fetchBaiduBaike(a);
+                    if (hit.length) {
+                        allResults = hit.concat(allResults);
+                        break;
+                    }
+                }
+            }
+
+            const finalResults = dedupeSearchResults(allResults);
+            console.log('联网搜索命中:', finalResults.length, finalResults.map(r => r.source + ':' + r.title));
+            return finalResults;
         }
 
         function formatSearchResultsForAI(results, query) {
             if (!results.length) return '';
-            let text = '【联网搜索模式·国内资料】下面是刚从百度百科/必应中国等检索到的资料，请据此回答。\n';
+            let text = '【联网搜索模式·国内资料】下面是刚从百度百科等检索到的资料，请据此回答。\n';
             text += '要求：\n';
             text += '1. 优先使用下列资料中的事实（姓名、身份、战队/公司、时间、成就等）整合成清楚可靠的答案；\n';
             text += '2. 资料已写明的关键信息，不要说“不知道”；\n';
             text += '3. 资料不足时只写有依据的部分，并标明不确定；不要编造；\n';
-            text += '4. 文末用条目列出主要信息来源。\n\n';
+            text += '4. 文末用条目列出主要信息来源（如百度百科）。\n\n';
             text += '用户问题：' + query + '\n\n联网资料：\n\n';
             results.forEach((r, i) => {
                 text += '【' + (i + 1) + '】' + r.title;
@@ -3076,28 +3033,25 @@
                 if (webSearchEnabled && text && !isFeynmanMode) {
                     const searchStatusId = showSearchStatus('正在联网搜索：' + text);
                     
-                    // 国内源并行检索，总超时约 8 秒
+                    // 国内快路径：内部已有短超时，这里只做兜底，避免再把已有结果扔掉
                     try {
-                        searchResults = await Promise.race([
-                            performWebSearch(text),
-                            new Promise((_, reject) => setTimeout(() => reject(new Error('搜索超时')), 8000))
-                        ]);
+                        searchResults = await performWebSearch(text);
                     } catch (searchError) {
-                        console.log('搜索超时或失败:', searchError);
+                        console.log('搜索失败:', searchError);
                         searchResults = [];
                     }
                     removeSearchStatus(searchStatusId);
                     
                     const solidResults = searchResults.filter(r =>
-                        r.source !== '搜索联想' && (r.snippet || '').trim().length >= 20
+                        r.source === '百度百科' && (r.snippet || '').trim().length >= 10
                     );
                     
                     if (searchResults.length > 0) {
                         const searchContext = formatSearchResultsForAI(searchResults, text);
                         const statusId2 = showSearchStatus(
                             solidResults.length
-                                ? `已找到 ${solidResults.length} 条有效资料，正在整合分析...`
-                                : `已获得 ${searchResults.length} 条线索，正在整合分析...`
+                                ? `已找到百科资料，正在整合分析...`
+                                : `已获得搜索线索，正在整合分析...`
                         );
                         
                         // 不污染会话历史：仅构造本次 API 消息
@@ -3221,9 +3175,10 @@
                         conv.updatedAt = Date.now();
                         saveConversations();
                     } else {
-                        const statusId2 = showSearchStatus('⚠️ 联网搜索未获取到结果，将基于AI自身知识回答（可能不准确）');
-                        await new Promise(r => setTimeout(r, 1200));
+                        const statusId2 = showSearchStatus('⚠️ 未检索到网页资料，改用模型知识作答');
+                        await new Promise(r => setTimeout(r, 800));
                         removeSearchStatus(statusId2);
+                        addMessage('ai', '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。');
                         conv.messages.push({
                             role: 'assistant',
                             content: '⚠️ 联网搜索未能获取到相关信息（可能是网络问题或服务暂时不可用）。以下回答基于AI自身知识，可能不够准确或时效性不足，仅供参考。'
