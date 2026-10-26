@@ -585,15 +585,15 @@
             white-space: nowrap;
         }
         .sel-float-bar button:hover { background: rgba(255,255,255,0.14); }
-        .sel-float-bar .annot-float { color: #fdba74; }
-        .sel-float-bar .annot-float:hover { background: rgba(230,126,34,0.28); }
+        .sel-float-bar .annot-float { color: #fca5a5; }
+        .sel-float-bar .annot-float:hover { background: rgba(220,38,38,0.28); }
         /* 批注输入浮层 */
         .annot-pop {
             display: none;
             position: fixed;
             z-index: 320;
             background: #fff;
-            border: 1px solid #e67e22;
+            border: 1px solid #dc2626;
             border-radius: 10px;
             padding: 10px;
             box-shadow: 0 6px 20px rgba(0,0,0,0.2);
@@ -610,12 +610,12 @@
             outline: none;
             box-sizing: border-box;
         }
-        .annot-pop input:focus { border-color: #e67e22; }
+        .annot-pop input:focus { border-color: #dc2626; }
         .annot-pop-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
         .annot-pop-btns button { border: none; border-radius: 6px; padding: 5px 12px; font-size: 0.8rem; cursor: pointer; }
-        .annot-ok { background: #e67e22; color: #fff; }
+        .annot-ok { background: #dc2626; color: #fff; }
         .annot-cancel { background: #eee; color: #555; }
-        /* 批注：原文仅下划线，不改字号/行高；批注文字在下方单独一行 */
+        /* 批注：原文仅红色下划线；批注文字在下方，红色小括号 */
         .annot-unit {
             display: inline-flex;
             flex-direction: column;
@@ -625,7 +625,7 @@
         }
         .annotated {
             text-decoration: underline;
-            text-decoration-color: #e67e22;
+            text-decoration-color: #dc2626;
             text-decoration-thickness: 2px;
             text-underline-offset: 3px;
             text-decoration-skip-ink: none;
@@ -637,19 +637,19 @@
             margin-top: 2px;
             margin-bottom: 4px;
             font-family: "Kaiti SC","KaiTi","STKaiti","楷体","DFKai-SB",cursive,serif;
-            color: #e67e22;
+            color: #dc2626;
             font-size: 0.82em;
             line-height: 1.35;
             user-select: none;
             -webkit-user-select: none;
             cursor: default;
         }
-        .annot-note::before { content: "〔批注·"; }
-        .annot-note-text::after { content: "〕"; }
+        .annot-note::before { content: "(批注："; }
+        .annot-note-text::after { content: ")"; }
         .annot-del {
             border: none;
             background: transparent;
-            color: #c0392b;
+            color: #dc2626;
             font-size: 0.95em;
             line-height: 1;
             padding: 0 2px;
@@ -657,7 +657,61 @@
             border-radius: 4px;
             opacity: 0.75;
         }
-        .annot-del:hover { opacity: 1; background: rgba(192,57,43,0.12); }
+        .annot-del:hover { opacity: 1; background: rgba(220,38,38,0.12); }
+        /* 引用标注块（输入预览 + 消息气泡） */
+        .quote-preview {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .quote-preview.show { display: flex; }
+        .quote-preview-inner,
+        .msg-quote {
+            display: flex;
+            align-items: stretch;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+            background: #eeeeee;
+            border-radius: 8px;
+            padding: 8px 12px;
+            box-sizing: border-box;
+        }
+        .msg-quote {
+            margin: 4px 0 8px;
+            max-width: 100%;
+        }
+        .quote-preview-bar,
+        .msg-quote-bar {
+            width: 3px;
+            border-radius: 999px;
+            background: #c5c5c5;
+            flex-shrink: 0;
+            align-self: stretch;
+        }
+        .quote-preview-text,
+        .msg-quote-text {
+            flex: 1;
+            min-width: 0;
+            color: #555555;
+            font-size: 0.9em;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .quote-preview-close {
+            border: none;
+            background: transparent;
+            color: #999;
+            font-size: 1.1rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+        .quote-preview-close:hover { background: rgba(0,0,0,0.06); color: #555; }
         /* 通用模态框 */
         .modal-overlay {
             display: none;
@@ -1676,6 +1730,13 @@
             <div class="input-area">
                 <div class="input-wrapper">
                     <div class="input-container">
+                        <div id="quotePreview" class="quote-preview">
+                            <div class="quote-preview-inner">
+                                <span class="quote-preview-bar"></span>
+                                <span class="quote-preview-text" id="quotePreviewText"></span>
+                            </div>
+                            <button type="button" class="quote-preview-close" title="取消引用" onclick="clearQuotePreview()">×</button>
+                        </div>
                         <textarea id="userInput" placeholder="输入你的问题，或粘贴图片..." rows="1" onkeydown="handleKey(event)" onpaste="handlePaste(event)"></textarea>
                         <div class="input-actions">
                             <button class="action-btn" onclick="document.getElementById('fileInput').click()">
@@ -2322,6 +2383,7 @@
                 isLoading: false,
                 currentImages: [],
                 inputText: '',
+                pendingQuote: '',
                 workspaceFiles: []
             };
         }
@@ -2430,6 +2492,7 @@
             if (currentConvId && conversations[currentConvId]) {
                 const prevConv = conversations[currentConvId];
                 prevConv.inputText = document.getElementById('userInput').value;
+                prevConv.pendingQuote = pendingQuoteText || '';
             }
             
             currentConvId = id;
@@ -2440,6 +2503,8 @@
             input.value = conv.inputText || '';
             input.style.height = 'auto';
             input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+            pendingQuoteText = '';
+            setQuotePreview(conv.pendingQuote || '');
             
             // Restore attachment state (images + files)
             migrateLegacyImages(conv);
@@ -2816,6 +2881,7 @@
         async function sendMessage() {
             const input = document.getElementById('userInput');
             const text = input.value.trim();
+            const quote = (pendingQuoteText || '').trim();
             
             // Ensure we have a conversation
             if (!currentConvId || !conversations[currentConvId]) {
@@ -2828,16 +2894,21 @@
             const images = pending.filter(f => f.type && f.type.startsWith('image/') && f.dataUrl);
             const textFiles = pending.filter(f => f.content);
             
-            if ((!text && pending.length === 0) || conv.isLoading) return;
+            if ((!text && pending.length === 0 && !quote) || conv.isLoading) return;
 
             conv.isLoading = true;
             document.getElementById('sendBtn').disabled = true;
 
-            // Build message content（文本文件内容作为上下文注入）
-            let sendText = text;
+            // 气泡展示：引用块 + 用户问题；发给模型时同样带上引用上下文
+            let displayText = text;
+            if (quote) {
+                const qBlock = quote.split('\n').map(l => '> ' + l).join('\n');
+                displayText = text ? qBlock + '\n\n' + text : qBlock;
+            }
+            let sendText = displayText;
             if (textFiles.length > 0) {
                 const fileContext = textFiles.map(f => '【附件文件：' + f.name + '】\n' + f.content).join('\n\n');
-                sendText = fileContext + '\n\n' + (text ? '【我的问题】\n' + text : '请帮我分析讲解以上附件文件的内容。');
+                sendText = fileContext + '\n\n' + (displayText ? '【我的问题】\n' + displayText : '请帮我分析讲解以上附件文件的内容。');
             }
             let content = [];
             images.forEach(img => {
@@ -2849,10 +2920,10 @@
 
             // Display user message（气泡中只显示问题与附件标记）
             const attachedMeta = pending.map(f => ({ name: f.name, size: f.size }));
-            addMessage('user', text, images.map(i => i.dataUrl), true, [], attachedMeta);
+            addMessage('user', displayText, images.map(i => i.dataUrl), true, [], attachedMeta);
             
             // Save to conversation
-            conv.messages.push({ role: 'user', content: content, displayText: text, attachedFiles: attachedMeta });
+            conv.messages.push({ role: 'user', content: content, displayText: displayText, attachedFiles: attachedMeta });
             conv.updatedAt = Date.now();
             saveConversations();
             updateConversationTitle();
@@ -2861,6 +2932,7 @@
             input.value = '';
             input.style.height = 'auto';
             conv.inputText = '';
+            clearQuotePreview();
             
             // 附件随消息发送后自动存入工作区（从工作区引用的不重复保存）
             if (pending.length > 0) {
@@ -3290,17 +3362,43 @@
             quoteText(getBubbleText(bubble));
         }
 
-        // 把引用内容插入输入框（每行加 > 前缀）
+        // 引用到输入区：以灰底竖条标注块展示，发送后气泡同样样式
+        let pendingQuoteText = '';
+        function setQuotePreview(text) {
+            pendingQuoteText = (text || '').trim();
+            const box = document.getElementById('quotePreview');
+            const label = document.getElementById('quotePreviewText');
+            if (!box || !label) return;
+            if (!pendingQuoteText) {
+                box.classList.remove('show');
+                label.textContent = '';
+            } else {
+                label.textContent = pendingQuoteText;
+                box.classList.add('show');
+            }
+            const conv = getCurrentConversation();
+            if (conv) {
+                conv.pendingQuote = pendingQuoteText;
+                saveConversations();
+            }
+        }
+        function clearQuotePreview() {
+            pendingQuoteText = '';
+            const box = document.getElementById('quotePreview');
+            const label = document.getElementById('quotePreviewText');
+            if (box) box.classList.remove('show');
+            if (label) label.textContent = '';
+            const conv = getCurrentConversation();
+            if (conv) {
+                conv.pendingQuote = '';
+                saveConversations();
+            }
+        }
         function quoteText(text) {
             if (!text || !text.trim()) { showToast('没有可引用的文字'); return; }
+            setQuotePreview(text.trim());
             const ta = document.getElementById('userInput');
-            const quoted = text.trim().split('\n').map(l => '> ' + l).join('\n');
-            const cur = ta.value.replace(/\s+$/, '');
-            ta.value = cur ? cur + '\n\n' + quoted + '\n\n' : quoted + '\n\n';
-            ta.dispatchEvent(new Event('input'));
             ta.focus();
-            const end = ta.value.length;
-            ta.setSelectionRange(end, end);
             showToast('已引用到输入框，可继续补充你的问题');
         }
 
@@ -3524,6 +3622,14 @@
         }
 
         function formatMessage(text) {
+            const quoteHolders = [];
+            text = text.replace(/(?:^|\n)((?:>[ \t]?.*(?:\n|$))+)/g, (m) => {
+                const body = m.replace(/^\n/, '').replace(/\n$/, '').split('\n')
+                    .map(l => l.replace(/^>[ \t]?/, '')).join('\n');
+                const idx = quoteHolders.length;
+                quoteHolders.push(body);
+                return '\n\n\u0000QUOTE' + idx + '\u0000\n\n';
+            });
             text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
             text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
             text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
@@ -3536,6 +3642,10 @@
             text = text.replace(/\n\n/g, '</p><p>');
             text = '<p>' + text + '</p>';
             text = text.replace(/\n/g, '<br>');
+            text = text.replace(/\u0000QUOTE(\d+)\u0000/g, (_, i) => {
+                const body = escapeHtml(quoteHolders[+i]).replace(/\n/g, '<br>');
+                return '</p><div class="msg-quote"><span class="msg-quote-bar"></span><span class="msg-quote-text">' + body + '</span></div><p>';
+            });
             text = text.replace(/<p><\/p>/g, '');
             text = text.replace(/<p>(<h3>)/g, '$1');
             text = text.replace(/(<\/h3>)<\/p>/g, '$1');
@@ -3543,6 +3653,8 @@
             text = text.replace(/(<\/ul>)<\/p>/g, '$1');
             text = text.replace(/<p>(<pre>)/g, '$1');
             text = text.replace(/(<\/pre>)<\/p>/g, '$1');
+            text = text.replace(/<p>(<div class="msg-quote">)/g, '$1');
+            text = text.replace(/(<\/div>)<\/p>/g, '$1');
             return text;
         }
 
