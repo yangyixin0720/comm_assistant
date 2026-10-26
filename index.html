@@ -1773,7 +1773,7 @@
         const STORAGE_KEY = 'learning_assistant_conversations';
         const THEME_KEY = 'learning_assistant_theme';
 
-        const SYSTEM_PROMPT = `你的身份：你是"学习助手"，一个由 yyx 创作的 AI 学习智能体。当用户问"你是谁""你叫什么""谁创作了你"等身份问题时，用第一人称回答，例如：我是由 yyx 创作的学习助手。绝对不要说自己是通义千问、Qwen、阿里或其他任何模型/公司的产品。
+        const SYSTEM_PROMPT = `你的身份：你是"学习助手"，一个由 yyx 创作的 AI 学习智能体。当用户问"你是谁""你叫什么""谁创作了你"等身份问题时，必须用第一人称自称，正确示例：「我是由 yyx 创作的学习助手。」错误示例（禁止）：「你是由 yyx 创作的学习助手。」绝对不要说自己是通义千问、Qwen、阿里或其他任何模型/公司的产品。
 
 你是一个通用的学习助手，帮助学生理解各种学科知识。
 
@@ -1788,7 +1788,7 @@
 - 不确定的内容直接说"我不太确定"或"这个我不太了解"，不要编造虚假信息
 - 回答要简洁，不要重复相同的内容`;
 
-        const FEYNMAN_PROMPT = `身份提醒：你是由 yyx 创作的"学习助手"，此刻在费曼模式中扮演一个好奇的同学。若被问到身份，用第一人称回答：我是由 yyx 创作的学习助手。不要说自己是通义千问或 Qwen。
+        const FEYNMAN_PROMPT = `身份提醒：你是由 yyx 创作的"学习助手"，此刻在费曼模式中扮演一个好奇的同学。若被问到身份，必须说「我是由 yyx 创作的学习助手」，禁止说「你是…」。不要说自己是通义千问或 Qwen。
 
 你现在扮演一个好奇、爱追问的同学。学生将给你讲解一个知识点，你的任务是通过提问来检验他是否真正理解。
 
@@ -2178,28 +2178,17 @@
                     // 重置所有卡死的 isLoading 状态（防止页面刷新后按钮永久禁用）
                     Object.values(conversations).forEach(conv => {
                         conv.isLoading = false;
-                        // 修正旧版身份提示把「我是」写成「你是」的问题
+                        // 强制同步最新身份设定，避免 localStorage 里旧 system 提示继续生效
                         if (conv.messages && conv.messages[0] && conv.messages[0].role === 'system') {
                             const sys = conv.messages[0].content || '';
-                            if (sys.includes('回答：你是由 yyx 创作的学习助手')) {
-                                conv.messages[0].content = sys.replace(
-                                    '回答：你是由 yyx 创作的学习助手',
-                                    '用第一人称回答，例如：我是由 yyx 创作的学习助手'
-                                );
-                            }
-                            if (sys.includes('仍回答由 yyx 创作的学习助手')) {
-                                conv.messages[0].content = conv.messages[0].content.replace(
-                                    '仍回答由 yyx 创作的学习助手',
-                                    '用第一人称回答：我是由 yyx 创作的学习助手'
-                                );
+                            if (sys === FEYNMAN_PROMPT || sys.includes('费曼模式中扮演')) {
+                                conv.messages[0].content = FEYNMAN_PROMPT;
+                                if (conv._prevSystem !== undefined) conv._prevSystem = SYSTEM_PROMPT;
+                            } else {
+                                conv.messages[0].content = SYSTEM_PROMPT;
                             }
                         }
-                        if (conv._prevSystem && conv._prevSystem.includes('回答：你是由 yyx 创作的学习助手')) {
-                            conv._prevSystem = conv._prevSystem.replace(
-                                '回答：你是由 yyx 创作的学习助手',
-                                '用第一人称回答，例如：我是由 yyx 创作的学习助手'
-                            );
-                        }
+                        if (conv._prevSystem) conv._prevSystem = SYSTEM_PROMPT;
                     });
                     saveConversations();
                 }
