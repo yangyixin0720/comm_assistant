@@ -45,61 +45,61 @@
             --accent-text: #c7d2fe;
         }
         [data-theme="green"] {
-            --primary: #3d8b63;
-            --primary-hover: #2f6f4e;
-            --bg: #c7edcc;
-            --card: #eaf7ec;
-            --text: #24402e;
-            --text-secondary: #5c7566;
-            --border: #b5dcc0;
-            --user-msg: #3d8b63;
-            --ai-msg: #dcf2df;
-            --sidebar-bg: #ddf1e1;
-            --sidebar-hover: #cde7d3;
-            --sidebar-active: #c2e6cd;
-            --chip-bg: #d6ecdb;
-            --code-inline-bg: #cbe6d2;
-            --accent-soft: #cde9d6;
-            --accent-border: #9ed0b0;
-            --accent-text: #2f6f4e;
+            --primary: #5c7a66;
+            --primary-hover: #4a6454;
+            --bg: #e8ede9;
+            --card: #f5f7f5;
+            --text: #2a352e;
+            --text-secondary: #6a756e;
+            --border: #c9d2cb;
+            --user-msg: #5c7a66;
+            --ai-msg: #dde4df;
+            --sidebar-bg: #eef2ef;
+            --sidebar-hover: #e0e6e2;
+            --sidebar-active: #d3dbd5;
+            --chip-bg: #e0e6e2;
+            --code-inline-bg: #d3dbd5;
+            --accent-soft: #dce4de;
+            --accent-border: #a8b8ad;
+            --accent-text: #4a6454;
         }
         [data-theme="blue"] {
-            --primary: #0ea5e9;
-            --primary-hover: #0284c7;
-            --bg: #eef6fb;
+            --primary: #5d7d92;
+            --primary-hover: #4a6678;
+            --bg: #eef2f4;
             --card: #ffffff;
-            --text: #0f2942;
-            --text-secondary: #5b7794;
-            --border: #cfe3f2;
-            --user-msg: #0ea5e9;
-            --ai-msg: #e3f0f8;
-            --sidebar-bg: #e7f1f9;
-            --sidebar-hover: #d8e9f5;
-            --sidebar-active: #cde5f5;
-            --chip-bg: #e1eef8;
-            --code-inline-bg: #d3e6f4;
-            --accent-soft: #cde5f5;
-            --accent-border: #9dcbee;
-            --accent-text: #0369a1;
+            --text: #24333d;
+            --text-secondary: #6b7c88;
+            --border: #d0dbe2;
+            --user-msg: #5d7d92;
+            --ai-msg: #e4ebef;
+            --sidebar-bg: #e8eef1;
+            --sidebar-hover: #dde5ea;
+            --sidebar-active: #d2dde4;
+            --chip-bg: #e2e9ed;
+            --code-inline-bg: #d5dfe5;
+            --accent-soft: #d8e2e8;
+            --accent-border: #a8bbc8;
+            --accent-text: #4a6678;
         }
         [data-theme="pink"] {
-            --primary: #ec4899;
-            --primary-hover: #db2777;
-            --bg: #fdf2f8;
+            --primary: #a67c8c;
+            --primary-hover: #8d6676;
+            --bg: #f4f0f2;
             --card: #ffffff;
-            --text: #4a1533;
-            --text-secondary: #9d6b85;
-            --border: #fbcfe8;
-            --user-msg: #ec4899;
-            --ai-msg: #fce7f3;
-            --sidebar-bg: #fceff7;
-            --sidebar-hover: #fbdcef;
-            --sidebar-active: #fbcfe8;
-            --chip-bg: #fce7f3;
-            --code-inline-bg: #fbcfe8;
-            --accent-soft: #fbcfe8;
-            --accent-border: #f9a8d4;
-            --accent-text: #9d174d;
+            --text: #3d2a32;
+            --text-secondary: #8a7380;
+            --border: #e5d6dc;
+            --user-msg: #a67c8c;
+            --ai-msg: #eee6ea;
+            --sidebar-bg: #f1eaed;
+            --sidebar-hover: #e8dde2;
+            --sidebar-active: #dfd0d7;
+            --chip-bg: #ebe2e6;
+            --code-inline-bg: #e0d3d9;
+            --accent-soft: #e8dce2;
+            --accent-border: #c9aeb8;
+            --accent-text: #8d6676;
         }
         [data-theme="orange"] {
             --primary: #f97316;
@@ -225,28 +225,29 @@
             border: 1px solid var(--border);
             border-radius: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-            padding: 6px;
+            padding: 8px;
             z-index: 200;
-            min-width: 250px;
+            min-width: 0;
         }
-        .theme-menu.open { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; }
+        .theme-menu.open { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
         .theme-menu-item {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 10px;
-            border-radius: 8px;
+            justify-content: center;
+            padding: 6px;
+            border-radius: 999px;
             cursor: pointer;
-            font-size: 0.85rem;
-            color: var(--text);
-            transition: background 0.15s;
+            transition: background 0.15s, box-shadow 0.15s;
         }
         .theme-menu-item:hover { background: var(--sidebar-hover); }
-        .theme-menu-item.active { background: var(--accent-soft); font-weight: 600; }
+        .theme-menu-item.active {
+            background: var(--accent-soft);
+            box-shadow: inset 0 0 0 2px var(--primary);
+        }
         .theme-swatch {
-            width: 18px; height: 18px;
-            border-radius: 5px;
-            border: 1px solid rgba(0,0,0,0.15);
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            border: 1px solid rgba(0,0,0,0.12);
             flex-shrink: 0;
         }
         .main-layout {
@@ -1627,29 +1628,29 @@
                 <div class="theme-wrap">
                     <span class="header-btn" onclick="toggleThemeMenu(event)">🎨<span class="hb-label"> 主题</span></span>
                 <div class="theme-menu" id="themeMenu">
-                    <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#4b5563,#f5f5f5)"></span>默认白灰
+                    <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')" title="白灰">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#4b5563,#f5f5f5)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="dark" onclick="applyTheme('dark')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#818cf8,#0f172a)"></span>暗夜黑
+                    <div class="theme-menu-item" data-theme-choice="dark" onclick="applyTheme('dark')" title="暗夜">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#818cf8,#0f172a)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="green" onclick="applyTheme('green')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#3d8b63,#c7edcc)"></span>护眼绿
+                    <div class="theme-menu-item" data-theme-choice="green" onclick="applyTheme('green')" title="灰绿">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#5c7a66,#e8ede9)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="blue" onclick="applyTheme('blue')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#0ea5e9,#eef6fb)"></span>海洋蓝
+                    <div class="theme-menu-item" data-theme-choice="blue" onclick="applyTheme('blue')" title="灰蓝">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#5d7d92,#eef2f4)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="pink" onclick="applyTheme('pink')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#ec4899,#fdf2f8)"></span>樱花粉
+                    <div class="theme-menu-item" data-theme-choice="pink" onclick="applyTheme('pink')" title="灰粉">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#a67c8c,#f4f0f2)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="orange" onclick="applyTheme('orange')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#f97316,#fff7ed)"></span>暖阳橙
+                    <div class="theme-menu-item" data-theme-choice="orange" onclick="applyTheme('orange')" title="暖橙">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#f97316,#fff7ed)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="coffee" onclick="applyTheme('coffee')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#8b5e34,#f3ece2)"></span>拿铁咖啡
+                    <div class="theme-menu-item" data-theme-choice="coffee" onclick="applyTheme('coffee')" title="咖啡">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#8b5e34,#f3ece2)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="gray" onclick="applyTheme('gray')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#52525b,#f4f4f5)"></span>石墨灰
+                    <div class="theme-menu-item" data-theme-choice="gray" onclick="applyTheme('gray')" title="石墨">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#52525b,#f4f4f5)"></span>
                     </div>
                 </div>
                 </div>
