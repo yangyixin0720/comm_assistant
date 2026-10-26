@@ -3472,11 +3472,18 @@
             text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
             text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
             text = text.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+            // 单独一行的加粗当作小标题（如「方法一」「方法二」），避免被卷进列表缩进
+            text = text.replace(/^\*\*(.+?)\*\*\s*$/gm, '<h3>$1</h3>');
             text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
             text = text.replace(/^\* (.+)$/gm, '<li>$1</li>');
             text = text.replace(/^- (.+)$/gm, '<li>$1</li>');
             text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-            text = text.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            // 只把「连续」的 <li> 包进同一个 <ul>；中间若夹了标题/段落就拆开，
+            // 修复旧逻辑 /(<li>.*<\/li>)/s 把全文所有列表项吞进一个 ul 导致后续标题跟着缩进
+            text = text.replace(/(?:<li>.*<\/li>\n?)+/g, (block) => {
+                const items = block.match(/<li>.*?<\/li>/g) || [];
+                return '<ul>' + items.join('') + '</ul>\n';
+            });
             text = text.replace(/\n\n/g, '</p><p>');
             text = '<p>' + text + '</p>';
             text = text.replace(/\n/g, '<br>');
@@ -3493,6 +3500,9 @@
             text = text.replace(/(<\/pre>)<\/p>/g, '$1');
             text = text.replace(/<p>(<div class="msg-quote">)/g, '$1');
             text = text.replace(/(<\/div>)<\/p>/g, '$1');
+            // 清掉标题/列表前后残留的空 <br>
+            text = text.replace(/<br>\s*(<(?:h3|ul|\/ul|pre|div))/g, '$1');
+            text = text.replace(/(<\/(?:h3|ul|pre|div)>)\s*<br>/g, '$1');
             return text;
         }
 
