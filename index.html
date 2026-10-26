@@ -1783,7 +1783,7 @@
 
 回答要求：
 - 用通俗易懂的中文解释，适合学生理解
-- 公式用 Unicode 字符表示（如 π, Σ, ），不要用 LaTeX
+- 公式必须用 Unicode 明文写出（如 π、Σ、fₛ/2、ω₀），禁止使用 LaTeX，禁止用 $...$ 或 $$...$$ 包裹公式
 - 代码用代码块格式
 - 分步骤讲解，逻辑清晰
 - 如果问题模糊，主动询问具体需求
@@ -3463,6 +3463,40 @@
             if (chat) chat.addEventListener('scroll', hideQuoteFloat);
         }
 
+        // 把模型偶发输出的 $...$ LaTeX 转成可读明文（本页不加载公式引擎）
+        function latexExprToPlain(expr) {
+            const sub = { '0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉',
+                a:'ₐ',e:'ₑ',h:'ₕ',i:'ᵢ',j:'ⱼ',k:'ₖ',l:'ₗ',m:'ₘ',n:'ₙ',o:'ₒ',p:'ₚ',r:'ᵣ',s:'ₛ',t:'ₜ',u:'ᵤ',v:'ᵥ',x:'ₓ' };
+            const sup = { '0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','+':'⁺','-':'⁻' };
+            let s = expr.trim();
+            s = s.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '($1)/($2)');
+            s = s.replace(/\\sqrt\{([^{}]+)\}/g, '√($1)');
+            s = s.replace(/\\(?:left|right|big|Big|bigg|Bigg)/g, '');
+            s = s.replace(/\\times/g, '×').replace(/\\cdot/g, '·').replace(/\\div/g, '÷');
+            s = s.replace(/\\pm/g, '±').replace(/\\mp/g, '∓');
+            s = s.replace(/\\leq/g, '≤').replace(/\\geq/g, '≥').replace(/\\neq/g, '≠').replace(/\\approx/g, '≈');
+            s = s.replace(/\\infty/g, '∞').replace(/\\sum/g, 'Σ').replace(/\\prod/g, 'Π').replace(/\\int/g, '∫');
+            s = s.replace(/\\pi/g, 'π').replace(/\\omega/g, 'ω').replace(/\\Omega/g, 'Ω');
+            s = s.replace(/\\alpha/g, 'α').replace(/\\beta/g, 'β').replace(/\\gamma/g, 'γ').replace(/\\theta/g, 'θ');
+            s = s.replace(/\\lambda/g, 'λ').replace(/\\mu/g, 'μ').replace(/\\sigma/g, 'σ').replace(/\\phi/g, 'φ');
+            s = s.replace(/\\Delta/g, 'Δ').replace(/\\delta/g, 'δ');
+            s = s.replace(/_\{([^{}]+)\}/g, (_, t) => t.split('').map(c => sub[c] || c).join(''));
+            s = s.replace(/\^\{([^{}]+)\}/g, (_, t) => t.split('').map(c => sup[c] || c).join(''));
+            s = s.replace(/_([0-9a-zA-Z])/g, (_, c) => sub[c.toLowerCase()] || ('_' + c));
+            s = s.replace(/\^([0-9+\-])/g, (_, c) => sup[c] || ('^' + c));
+            s = s.replace(/\\[a-zA-Z]+/g, '');
+            s = s.replace(/[{}]/g, '');
+            s = s.replace(/\s+/g, ' ').trim();
+            return s;
+        }
+        function stripLatexDelimiters(text) {
+            text = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, m) => latexExprToPlain(m));
+            text = text.replace(/\$([^\$\n]+?)\$/g, (_, m) => latexExprToPlain(m));
+            text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, m) => latexExprToPlain(m));
+            text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, m) => latexExprToPlain(m));
+            return text;
+        }
+
         function formatMessage(text) {
             const quoteHolders = [];
             text = text.replace(/(?:^|\n)((?:>[ \t]?.*(?:\n|$))+)/g, (m) => {
@@ -3472,8 +3506,20 @@
                 quoteHolders.push(body);
                 return '\n\n\u0000QUOTE' + idx + '\u0000\n\n';
             });
-            text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            // 先抽出代码，避免把代码里的 $ 当成公式
+            const codeHolders = [];
+            text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, __lang, code) => {
+                const i = codeHolders.length;
+                codeHolders.push('<pre><code>' + code + '</code></pre>');
+                return '\u0000CODE' + i + '\u0000';
+            });
+            const inlineHolders = [];
+            text = text.replace(/`([^`]+)`/g, (_, c) => {
+                const i = inlineHolders.length;
+                inlineHolders.push('<code>' + c + '</code>');
+                return '\u0000IC' + i + '\u0000';
+            });
+            text = stripLatexDelimiters(text);
             text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
             text = text.replace(/^## (.+)$/gm, '<h3>$1</h3>');
             // 单独一行的加粗当作小标题（如「方法一」「方法二」），避免被卷进列表缩进
@@ -3495,6 +3541,8 @@
                 const body = escapeHtml(quoteHolders[+i]).replace(/\n/g, '<br>');
                 return '</p><div class="msg-quote"><span class="msg-quote-bar"></span><span class="msg-quote-text">' + body + '</span></div><p>';
             });
+            text = text.replace(/\u0000CODE(\d+)\u0000/g, (_, i) => codeHolders[+i]);
+            text = text.replace(/\u0000IC(\d+)\u0000/g, (_, i) => inlineHolders[+i]);
             text = text.replace(/<p><\/p>/g, '');
             text = text.replace(/<p>(<h3>)/g, '$1');
             text = text.replace(/(<\/h3>)<\/p>/g, '$1');
