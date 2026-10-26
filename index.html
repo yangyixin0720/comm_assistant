@@ -9,6 +9,7 @@
         :root {
             --primary: #4b5563;
             --primary-hover: #374151;
+            --on-primary: #ffffff;
             --bg: #f5f5f5;
             --card: #ffffff;
             --text: #1f2937;
@@ -26,23 +27,24 @@
             --accent-text: #374151;
         }
         [data-theme="dark"] {
-            --primary: #818cf8;
-            --primary-hover: #6366f1;
+            --primary: #f1f5f9;
+            --primary-hover: #ffffff;
+            --on-primary: #0f172a;
             --bg: #0f172a;
             --card: #1e293b;
             --text: #e2e8f0;
             --text-secondary: #94a3b8;
             --border: #334155;
-            --user-msg: #6366f1;
+            --user-msg: #e2e8f0;
             --ai-msg: #273449;
             --sidebar-bg: #1e293b;
             --sidebar-hover: #334155;
-            --sidebar-active: #312e81;
+            --sidebar-active: #475569;
             --chip-bg: #334155;
             --code-inline-bg: #334155;
-            --accent-soft: #312e81;
-            --accent-border: #4338ca;
-            --accent-text: #c7d2fe;
+            --accent-soft: #334155;
+            --accent-border: #94a3b8;
+            --accent-text: #f8fafc;
         }
         [data-theme="green"] {
             --primary: #5c7a66;
@@ -102,23 +104,23 @@
             --accent-text: #8d6676;
         }
         [data-theme="orange"] {
-            --primary: #f97316;
-            --primary-hover: #ea580c;
-            --bg: #fff7ed;
+            --primary: #b8845a;
+            --primary-hover: #9a6d48;
+            --bg: #f6f1eb;
             --card: #ffffff;
-            --text: #431407;
-            --text-secondary: #9a6b4f;
-            --border: #fed7aa;
-            --user-msg: #f97316;
-            --ai-msg: #ffedd5;
-            --sidebar-bg: #fff3e6;
-            --sidebar-hover: #ffe8d1;
-            --sidebar-active: #fed7aa;
-            --chip-bg: #ffedd5;
-            --code-inline-bg: #fed7aa;
-            --accent-soft: #fed7aa;
-            --accent-border: #fdba74;
-            --accent-text: #9a3412;
+            --text: #3d2e22;
+            --text-secondary: #8a7464;
+            --border: #e4d5c6;
+            --user-msg: #b8845a;
+            --ai-msg: #efe7de;
+            --sidebar-bg: #f3ece5;
+            --sidebar-hover: #e9dfd4;
+            --sidebar-active: #dfd2c4;
+            --chip-bg: #ebe1d7;
+            --code-inline-bg: #e0d4c8;
+            --accent-soft: #e8ddd2;
+            --accent-border: #cbb39a;
+            --accent-text: #9a6d48;
         }
         [data-theme="coffee"] {
             --primary: #8b5e34;
@@ -139,24 +141,24 @@
             --accent-border: #c9b291;
             --accent-text: #6f4a28;
         }
-        [data-theme="gray"] {
-            --primary: #52525b;
-            --primary-hover: #3f3f46;
-            --bg: #f4f4f5;
-            --card: #ffffff;
-            --text: #27272a;
-            --text-secondary: #71717a;
-            --border: #e4e4e7;
-            --user-msg: #52525b;
-            --ai-msg: #ececee;
-            --sidebar-bg: #f0f0f1;
-            --sidebar-hover: #e6e6e8;
-            --sidebar-active: #dcdcdf;
-            --chip-bg: #e8e8ea;
-            --code-inline-bg: #dcdcdf;
-            --accent-soft: #e0e0e3;
-            --accent-border: #b9b9bf;
-            --accent-text: #3f3f46;
+        [data-theme="yellow"] {
+            --primary: #a8965a;
+            --primary-hover: #8c7c48;
+            --bg: #f5f2e8;
+            --card: #fbfaf4;
+            --text: #3a3526;
+            --text-secondary: #7a7360;
+            --border: #e0d9c4;
+            --user-msg: #a8965a;
+            --ai-msg: #ebe6d8;
+            --sidebar-bg: #f0ece0;
+            --sidebar-hover: #e6e0d0;
+            --sidebar-active: #ddd5c0;
+            --chip-bg: #e8e2d2;
+            --code-inline-bg: #ddd5c0;
+            --accent-soft: #e6dfce;
+            --accent-border: #c4b992;
+            --accent-text: #8c7c48;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -277,7 +279,7 @@
             width: 100%;
             padding: 10px;
             background: var(--primary);
-            color: white;
+            color: var(--on-primary);
             border: none;
             border-radius: 10px;
             font-size: 0.9rem;
@@ -462,7 +464,7 @@
         }
         .message.user .bubble {
             background: var(--user-msg);
-            color: white;
+            color: var(--on-primary);
             border-bottom-right-radius: 4px;
         }
         .message.ai .bubble {
@@ -776,7 +778,7 @@
         /* 自测出题 */
         .quiz-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
         .quiz-tab { padding: 5px 12px; border-radius: 14px; border: 1px solid var(--border); background: var(--chip-bg); color: var(--text-secondary); font-size: 0.8rem; cursor: pointer; }
-        .quiz-tab.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .quiz-tab.active { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
         .quiz-q { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
         .quiz-q-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; line-height: 1.6; }
         .quiz-opt { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 0.85rem; line-height: 1.5; }
@@ -853,13 +855,13 @@
         }
         .action-btn.active {
             background: var(--primary);
-            color: white;
+            color: var(--on-primary);
             border-color: var(--primary);
         }
         .send-btn {
             padding: 12px 24px;
             background: var(--primary);
-            color: white;
+            color: var(--on-primary);
             border: none;
             border-radius: 12px;
             font-size: 0.95rem;
@@ -1268,7 +1270,7 @@
             gap: 6px;
         }
         .feynman-end-btn.visible { display: inline-flex; }
-        .feynman-end-btn:hover { background: var(--primary); color: #fff; }
+        .feynman-end-btn:hover { background: var(--primary); color: var(--on-primary); }
         .feynman-intro {
             background: linear-gradient(135deg, #fffbeb, #fef3c7);
             border: 1px solid #fbbf24;
@@ -1632,7 +1634,7 @@
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#4b5563,#f5f5f5)"></span>
                     </div>
                     <div class="theme-menu-item" data-theme-choice="dark" onclick="applyTheme('dark')" title="暗夜">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#818cf8,#0f172a)"></span>
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#f1f5f9,#0f172a)"></span>
                     </div>
                     <div class="theme-menu-item" data-theme-choice="green" onclick="applyTheme('green')" title="灰绿">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#5c7a66,#e8ede9)"></span>
@@ -1643,14 +1645,14 @@
                     <div class="theme-menu-item" data-theme-choice="pink" onclick="applyTheme('pink')" title="灰粉">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#a67c8c,#f4f0f2)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="orange" onclick="applyTheme('orange')" title="暖橙">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#f97316,#fff7ed)"></span>
+                    <div class="theme-menu-item" data-theme-choice="orange" onclick="applyTheme('orange')" title="灰橙">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#b8845a,#f6f1eb)"></span>
                     </div>
                     <div class="theme-menu-item" data-theme-choice="coffee" onclick="applyTheme('coffee')" title="咖啡">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#8b5e34,#f3ece2)"></span>
                     </div>
-                    <div class="theme-menu-item" data-theme-choice="gray" onclick="applyTheme('gray')" title="石墨">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#52525b,#f4f4f5)"></span>
+                    <div class="theme-menu-item" data-theme-choice="yellow" onclick="applyTheme('yellow')" title="灰黄">
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#a8965a,#f5f2e8)"></span>
                     </div>
                 </div>
                 </div>
@@ -4361,6 +4363,7 @@
         function initTheme() {
             let saved = 'default';
             try { saved = localStorage.getItem(THEME_KEY) || 'default'; } catch (e) {}
+            if (saved === 'gray') saved = 'yellow'; // 旧「石墨灰」迁移为低饱和黄
             applyTheme(saved);
             document.addEventListener('click', (e) => {
                 const wrap = document.querySelector('.theme-wrap');
