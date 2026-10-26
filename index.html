@@ -7,23 +7,23 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
-            --bg: #fafafa;
+            --primary: #4b5563;
+            --primary-hover: #374151;
+            --bg: #f5f5f5;
             --card: #ffffff;
             --text: #1f2937;
             --text-secondary: #6b7280;
             --border: #e5e7eb;
-            --user-msg: #6366f1;
+            --user-msg: #4b5563;
             --ai-msg: #f3f4f6;
-            --sidebar-bg: #f9fafb;
+            --sidebar-bg: #fafafa;
             --sidebar-hover: #f3f4f6;
-            --sidebar-active: #eef2ff;
+            --sidebar-active: #e5e7eb;
             --chip-bg: #f3f4f6;
             --code-inline-bg: #e5e7eb;
-            --accent-soft: #eef2ff;
-            --accent-border: #c7d2fe;
-            --accent-text: #4338ca;
+            --accent-soft: #f3f4f6;
+            --accent-border: #d1d5db;
+            --accent-text: #374151;
         }
         [data-theme="dark"] {
             --primary: #818cf8;
@@ -991,7 +991,7 @@
             color: var(--text);
             font-weight: 500;
         }
-        .upload-menu-item:hover { background: #eef2ff; color: var(--primary); }
+        .upload-menu-item:hover { background: var(--accent-soft); color: var(--primary); }
         .upload-menu-item span {
             font-size: 0.7rem;
             color: var(--text-secondary);
@@ -1338,8 +1338,8 @@
             width: 100px;
             height: 100px;
             border-radius: 50%;
-            background: rgba(99, 102, 241, 0.3);
-            border: 3px solid #6366f1;
+            background: color-mix(in srgb, var(--primary) 30%, transparent);
+            border: 3px solid var(--primary);
             animation: ripple 1.5s infinite;
             display: flex;
             align-items: center;
@@ -1568,7 +1568,7 @@
             transition: all 0.2s;
         }
         .workspace-toggle:hover { border-color: var(--primary); color: var(--primary); }
-        .workspace-toggle.active { background: #eef2ff; border-color: var(--primary); color: var(--primary); }
+        .workspace-toggle.active { background: var(--accent-soft); border-color: var(--primary); color: var(--primary); }
 
         /* 图片预览弹窗 */
         .lightbox {
@@ -1628,7 +1628,7 @@
                     <span class="header-btn" onclick="toggleThemeMenu(event)">🎨<span class="hb-label"> 主题</span></span>
                 <div class="theme-menu" id="themeMenu">
                     <div class="theme-menu-item" data-theme-choice="default" onclick="applyTheme('default')">
-                        <span class="theme-swatch" style="background:linear-gradient(135deg,#6366f1,#fafafa)"></span>默认紫
+                        <span class="theme-swatch" style="background:linear-gradient(135deg,#4b5563,#f5f5f5)"></span>默认白灰
                     </div>
                     <div class="theme-menu-item" data-theme-choice="dark" onclick="applyTheme('dark')">
                         <span class="theme-swatch" style="background:linear-gradient(135deg,#818cf8,#0f172a)"></span>暗夜黑
@@ -2382,7 +2382,7 @@
             list.innerHTML = sorted.map(conv => `
                 <div class="conv-item ${conv.id === currentConvId ? 'active' : ''}" onclick="switchToConversation('${conv.id}')">
                     <div class="conv-info">
-                        <div class="conv-title">${escapeHtml(conv.title)}${conv.isLoading ? ' <span style="color:#6366f1;font-size:0.7rem;">⏳</span>' : ''}</div>
+                        <div class="conv-title">${escapeHtml(conv.title)}${conv.isLoading ? ' <span style="color:var(--primary);font-size:0.7rem;">⏳</span>' : ''}</div>
                         <div class="conv-time">${formatTime(conv.updatedAt)}</div>
                     </div>
                     <button class="conv-delete" onclick="deleteConversation('${conv.id}', event)" title="删除">×</button>
